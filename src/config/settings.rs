@@ -1,5 +1,7 @@
 //! Application settings loaded from config file
 
+use crate::config::keybindings::Keybindings;
+use crate::config::theme::ThemeConfig;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -13,6 +15,15 @@ pub struct Config {
     /// Font settings
     #[serde(default)]
     pub font: FontConfig,
+    /// Theme settings
+    #[serde(default)]
+    pub theme: ThemeConfig,
+    /// Keybindings
+    #[serde(default)]
+    pub keybindings: Keybindings,
+    /// Window settings
+    #[serde(default)]
+    pub window: WindowConfig,
 }
 
 impl Default for Config {
@@ -20,6 +31,9 @@ impl Default for Config {
         Self {
             terminal: TerminalConfig::default(),
             font: FontConfig::default(),
+            theme: ThemeConfig::default(),
+            keybindings: Keybindings::default(),
+            window: WindowConfig::default(),
         }
     }
 }
@@ -67,19 +81,63 @@ impl Default for TerminalConfig {
 /// Font configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FontConfig {
+    /// Font family name
+    #[serde(default = "default_font_family")]
+    pub family: String,
     /// Font size in points
     #[serde(default = "default_font_size")]
     pub size: f32,
+    /// Line height multiplier (1.0 = normal, 1.2 = 20% extra space)
+    #[serde(default = "default_line_height")]
+    pub line_height: f32,
+}
+
+fn default_font_family() -> String {
+    "monospace".to_string()
 }
 
 fn default_font_size() -> f32 {
     14.0
 }
 
+fn default_line_height() -> f32 {
+    1.2
+}
+
 impl Default for FontConfig {
     fn default() -> Self {
         Self {
+            family: default_font_family(),
             size: default_font_size(),
+            line_height: default_line_height(),
+        }
+    }
+}
+
+/// Window configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WindowConfig {
+    /// Horizontal and vertical padding in pixels
+    #[serde(default = "default_padding")]
+    pub padding: (u16, u16),
+    /// Window opacity/transparency (0.0 = fully transparent, 1.0 = opaque)
+    #[serde(default = "default_opacity")]
+    pub opacity: f32,
+}
+
+fn default_padding() -> (u16, u16) {
+    (10, 10)
+}
+
+fn default_opacity() -> f32 {
+    1.0
+}
+
+impl Default for WindowConfig {
+    fn default() -> Self {
+        Self {
+            padding: default_padding(),
+            opacity: default_opacity(),
         }
     }
 }
@@ -155,7 +213,12 @@ mod tests {
         let config = Config::default();
         assert_eq!(config.terminal.cols, 120);
         assert_eq!(config.terminal.rows, 40);
+        assert_eq!(config.font.family, "monospace");
         assert_eq!(config.font.size, 14.0);
+        assert_eq!(config.font.line_height, 1.2);
+        assert_eq!(config.window.padding, (10, 10));
+        assert_eq!(config.window.opacity, 1.0);
+        assert_eq!(config.theme.name, "default");
     }
 
     #[test]
@@ -164,10 +227,13 @@ mod tests {
         let toml_str = toml::to_string_pretty(&config).unwrap();
         assert!(toml_str.contains("[terminal]"));
         assert!(toml_str.contains("[font]"));
+        assert!(toml_str.contains("[theme]"));
+        assert!(toml_str.contains("[window]"));
 
         let parsed: Config = toml::from_str(&toml_str).unwrap();
         assert_eq!(parsed.terminal.cols, config.terminal.cols);
         assert_eq!(parsed.font.size, config.font.size);
+        assert_eq!(parsed.font.line_height, config.font.line_height);
     }
 
     #[test]
@@ -180,14 +246,28 @@ rows = 30
 working_dir = "/home/user"
 
 [font]
+family = "Fira Code"
 size = 16.0
+line_height = 1.4
+
+[theme]
+name = "dracula"
+
+[window]
+padding = [20, 15]
+opacity = 0.95
 "#;
         let config: Config = toml::from_str(toml_str).unwrap();
         assert_eq!(config.terminal.shell, Some("/bin/fish".to_string()));
         assert_eq!(config.terminal.cols, 100);
         assert_eq!(config.terminal.rows, 30);
         assert_eq!(config.terminal.working_dir, Some("/home/user".to_string()));
+        assert_eq!(config.font.family, "Fira Code");
         assert_eq!(config.font.size, 16.0);
+        assert_eq!(config.font.line_height, 1.4);
+        assert_eq!(config.theme.name, "dracula");
+        assert_eq!(config.window.padding, (20, 15));
+        assert!(f32::abs(config.window.opacity - 0.95) < 0.001);
     }
 
     #[test]
@@ -200,7 +280,29 @@ size = 18.0
         // Terminal should use defaults
         assert_eq!(config.terminal.cols, 120);
         assert_eq!(config.terminal.rows, 40);
-        // Font should use custom value
+        // Font should use custom value but default family and line_height
+        assert_eq!(config.font.family, "monospace");
         assert_eq!(config.font.size, 18.0);
+        assert_eq!(config.font.line_height, 1.2);
+        // Window should use defaults
+        assert_eq!(config.window.padding, (10, 10));
+        assert_eq!(config.window.opacity, 1.0);
+        // Theme should use defaults
+        assert_eq!(config.theme.name, "default");
+    }
+
+    #[test]
+    fn test_font_config_defaults() {
+        let font = FontConfig::default();
+        assert_eq!(font.family, "monospace");
+        assert_eq!(font.size, 14.0);
+        assert_eq!(font.line_height, 1.2);
+    }
+
+    #[test]
+    fn test_window_config_defaults() {
+        let window = WindowConfig::default();
+        assert_eq!(window.padding, (10, 10));
+        assert_eq!(window.opacity, 1.0);
     }
 }
