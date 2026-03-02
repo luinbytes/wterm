@@ -1502,20 +1502,32 @@ impl TerminalApp {
             // Find matches in focused pane
             if let Some(ref layout) = self.layout {
                 if let Some(pane) = layout.focused_pane() {
-                    // Collect all rows from the grid
-                    let rows: Vec<(usize, String)> = (0..pane.grid.rows())
-                        .map(|row| {
-                            let mut line = String::new();
-                            for col in 0..pane.grid.cols() {
-                                if let Some(cell) = pane.grid.get_cell(row, col) {
-                                    line.push(cell.char);
-                                } else {
-                                    line.push(' ');
-                                }
+                    // Collect all rows from the grid (including scrollback)
+                    let scrollback_len = pane.grid.scrollback_len();
+                    let mut rows: Vec<(usize, String)> = Vec::new();
+
+                    // Add scrollback rows (older history first)
+                    for i in 0..scrollback_len {
+                        if let Some(row) = pane.grid.get_scrollback_row(i) {
+                            let line: String = row.iter()
+                                .map(|c| c.char)
+                                .collect();
+                            rows.push((i, line));
+                        }
+                    }
+
+                    // Add visible grid rows
+                    for row in 0..pane.grid.rows() {
+                        let mut line = String::new();
+                        for col in 0..pane.grid.cols() {
+                            if let Some(cell) = pane.grid.get_cell(row, col) {
+                                line.push(cell.char);
+                            } else {
+                                line.push(' ');
                             }
-                            (row, line)
-                        })
-                        .collect();
+                        }
+                        rows.push((scrollback_len + row, line));
+                    }
 
                     // Update search state with matches
                     self.search_state.find_matches(rows.iter().map(|(r, l)| (*r, l.as_str())));
@@ -1527,14 +1539,39 @@ impl TerminalApp {
     /// Handle search navigation (next match)
     fn handle_search_next(&mut self) {
         if self.search_state.active {
-            self.search_state.next_match();
+            let row = self.search_state.next_match().map(|m| m.row);
+            if let Some(match_row) = row {
+                self.scroll_to_search_match(match_row);
+            }
         }
     }
 
     /// Handle search navigation (previous match)
     fn handle_search_prev(&mut self) {
         if self.search_state.active {
-            self.search_state.prev_match();
+            let row = self.search_state.prev_match().map(|m| m.row);
+            if let Some(match_row) = row {
+                self.scroll_to_search_match(match_row);
+            }
+        }
+    }
+
+    /// Scroll to make a search match visible
+    fn scroll_to_search_match(&mut self, match_row: usize) {
+        if let Some(ref mut layout) = self.layout {
+            if let Some(pane) = layout.focused_pane_mut() {
+                let scrollback_len = pane.grid.scrollback_len();
+                if match_row < scrollback_len {
+                    let visible_rows = pane.grid.rows();
+                    let scrollback_idx = match_row;
+                    let needed_scroll = (scrollback_len - scrollback_idx).min(visible_rows);
+                    if needed_scroll > 0 {
+                        let _ = pane.grid.scroll_up_history(needed_scroll);
+                    }
+                } else if pane.grid.scroll_offset() > 0 {
+                    let _ = pane.grid.scroll_to_bottom();
+                }
+            }
         }
     }
 

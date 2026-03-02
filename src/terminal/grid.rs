@@ -320,6 +320,11 @@ impl TerminalGrid {
         self.scrollback.len()
     }
 
+    /// Get a row from the scrollback buffer by index.
+    pub fn get_scrollback_row(&self, index: usize) -> Option<&ScrollbackRow> {
+        self.scrollback.get(index)
+    }
+
     /// Get the current scroll offset.
     pub fn scroll_offset(&self) -> usize {
         self.scroll_offset
