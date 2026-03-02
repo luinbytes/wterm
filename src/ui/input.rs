@@ -423,8 +423,155 @@ impl TerminalInput {
 mod tests {
     use super::*;
 
+    // ========================================
+    // TerminalInput Tests
+    // ========================================
+
     #[test]
-    fn test_input_handler_creation() {
+    fn test_terminal_input_to_bytes_char() {
+        let char_input = TerminalInput::Char('a');
+        assert_eq!(char_input.to_bytes(), vec![b'a']);
+    }
+
+    #[test]
+    fn test_terminal_input_to_bytes_multibyte_char() {
+        // Test UTF-8 encoding of multi-byte characters
+        let char_input = TerminalInput::Char('€');
+        assert_eq!(char_input.to_bytes(), vec![0xE2, 0x82, 0xAC]);
+    }
+
+    #[test]
+    fn test_terminal_input_to_bytes_escape() {
+        let escape_input = TerminalInput::Escape("\x1b[A".to_string());
+        assert_eq!(escape_input.to_bytes(), vec![0x1b, b'[', b'A']);
+    }
+
+    #[test]
+    fn test_terminal_input_to_bytes_none() {
+        let none_input = TerminalInput::None;
+        assert!(none_input.to_bytes().is_empty());
+    }
+
+    #[test]
+    fn test_terminal_input_has_output() {
+        assert!(TerminalInput::Char('a').has_output());
+        assert!(TerminalInput::Escape("\x1b[A".to_string()).has_output());
+        assert!(!TerminalInput::None.has_output());
+    }
+
+    #[test]
+    fn test_terminal_input_debug_clone_partial_eq() {
+        let input = TerminalInput::Char('x');
+        let cloned = input.clone();
+        assert_eq!(input, cloned);
+
+        let escaped = TerminalInput::Escape("\x1b".to_string());
+        assert_ne!(input, escaped);
+    }
+
+    // ========================================
+    // ModifierState Tests
+    // ========================================
+
+    #[test]
+    fn test_modifier_state_new() {
+        let state = ModifierState::new();
+        assert!(!state.shift);
+        assert!(!state.ctrl);
+        assert!(!state.alt);
+        assert!(!state.super_key);
+    }
+
+    #[test]
+    fn test_modifier_state_default() {
+        let state = ModifierState::default();
+        assert!(!state.any_pressed());
+    }
+
+    #[test]
+    fn test_modifier_state_any_pressed() {
+        let mut state = ModifierState::new();
+        assert!(!state.any_pressed());
+
+        state.shift = true;
+        assert!(state.any_pressed());
+
+        state.shift = false;
+        state.ctrl = true;
+        assert!(state.any_pressed());
+
+        state.ctrl = false;
+        state.alt = true;
+        assert!(state.any_pressed());
+
+        state.alt = false;
+        state.super_key = true;
+        assert!(state.any_pressed());
+    }
+
+    #[test]
+    fn test_modifier_state_as_escape_modifier_shift() {
+        let mut state = ModifierState::new();
+        state.shift = true;
+        assert_eq!(state.as_escape_modifier(), 1);
+    }
+
+    #[test]
+    fn test_modifier_state_as_escape_modifier_alt() {
+        let mut state = ModifierState::new();
+        state.alt = true;
+        assert_eq!(state.as_escape_modifier(), 2);
+    }
+
+    #[test]
+    fn test_modifier_state_as_escape_modifier_ctrl() {
+        let mut state = ModifierState::new();
+        state.ctrl = true;
+        assert_eq!(state.as_escape_modifier(), 4);
+    }
+
+    #[test]
+    fn test_modifier_state_as_escape_modifier_super() {
+        let mut state = ModifierState::new();
+        state.super_key = true;
+        assert_eq!(state.as_escape_modifier(), 8);
+    }
+
+    #[test]
+    fn test_modifier_state_as_escape_modifier_combinations() {
+        let mut state = ModifierState::new();
+
+        // Shift + Alt = 3
+        state.shift = true;
+        state.alt = true;
+        assert_eq!(state.as_escape_modifier(), 3);
+
+        // Shift + Alt + Ctrl = 7
+        state.ctrl = true;
+        assert_eq!(state.as_escape_modifier(), 7);
+
+        // All modifiers = 15
+        state.super_key = true;
+        assert_eq!(state.as_escape_modifier(), 15);
+    }
+
+    #[test]
+    fn test_modifier_state_copy() {
+        let mut state = ModifierState::new();
+        state.shift = true;
+        state.ctrl = true;
+
+        let copied = state; // Copy trait
+        assert_eq!(copied.shift, true);
+        assert_eq!(copied.ctrl, true);
+    }
+
+    // ========================================
+    // InputHandler Tests
+    // ========================================
+
+    #[test]
+    fn test_input_handler_new() {
         let handler = InputHandler::new();
         assert!(!handler.modifiers().shift);
         assert!(!handler.modifiers().ctrl);
@@ -433,40 +580,247 @@ mod tests {
     }
 
     #[test]
-    fn test_terminal_input_to_bytes() {
-        let char_input = TerminalInput::Char('a');
-        assert_eq!(char_input.to_bytes(), vec![b'a']);
-
-        let escape_input = TerminalInput::Escape("\x1b[A".to_string());
-        assert_eq!(escape_input.to_bytes(), vec![0x1b, b'[', b'A']);
-
-        let none_input = TerminalInput::None;
-        assert!(none_input.to_bytes().is_empty());
+    fn test_input_handler_default() {
+        let handler = InputHandler::default();
+        assert!(!handler.modifiers().any_pressed());
     }
 
     #[test]
-    fn test_ctrl_char_conversion() {
+    fn test_input_handler_modifiers_accessors() {
+        let mut handler = InputHandler::new();
+        assert!(!handler.modifiers().shift);
+
+        handler.modifiers_mut().shift = true;
+        assert!(handler.modifiers().shift);
+    }
+
+    // ----------------------------------------
+    // ctrl_char tests
+    // ----------------------------------------
+
+    #[test]
+    fn test_ctrl_char_lowercase_letters() {
         let handler = InputHandler::new();
 
+        // Ctrl+A through Ctrl+Z map to 0x01 through 0x1A
         assert_eq!(handler.ctrl_char('a'), Some('\x01'));
+        assert_eq!(handler.ctrl_char('b'), Some('\x02'));
+        assert_eq!(handler.ctrl_char('m'), Some('\x0d'));
         assert_eq!(handler.ctrl_char('z'), Some('\x1a'));
-        assert_eq!(handler.ctrl_char('A'), Some('\x01'));
-        assert_eq!(handler.ctrl_char('['), Some('\x1b'));
     }
 
     #[test]
-    fn test_modifier_state() {
+    fn test_ctrl_char_uppercase_letters() {
+        let handler = InputHandler::new();
+
+        // Uppercase should be treated same as lowercase
+        assert_eq!(handler.ctrl_char('A'), Some('\x01'));
+        assert_eq!(handler.ctrl_char('Z'), Some('\x1a'));
+    }
+
+    #[test]
+    fn test_ctrl_char_digits() {
+        let handler = InputHandler::new();
+
+        assert_eq!(handler.ctrl_char('0'), None);
+        assert_eq!(handler.ctrl_char('1'), None);
+        assert_eq!(handler.ctrl_char('2'), Some('\x00')); // NUL
+        assert_eq!(handler.ctrl_char('3'), Some('\x1b')); // ESC
+        assert_eq!(handler.ctrl_char('4'), Some('\x1c')); // FS
+        assert_eq!(handler.ctrl_char('5'), Some('\x1d')); // GS
+        assert_eq!(handler.ctrl_char('6'), Some('\x1e')); // RS
+        assert_eq!(handler.ctrl_char('7'), Some('\x1f')); // US
+        assert_eq!(handler.ctrl_char('8'), Some('\x7f')); // DEL
+        assert_eq!(handler.ctrl_char('9'), None);
+    }
+
+    #[test]
+    fn test_ctrl_char_special_characters() {
+        let handler = InputHandler::new();
+
+        assert_eq!(handler.ctrl_char('['), Some('\x1b'));  // ESC
+        assert_eq!(handler.ctrl_char('\\'), Some('\x1c')); // FS
+        assert_eq!(handler.ctrl_char(']'), Some('\x1d'));  // GS
+        assert_eq!(handler.ctrl_char('^'), Some('\x1e'));  // RS
+        assert_eq!(handler.ctrl_char('_'), Some('\x1f'));  // US
+    }
+
+    #[test]
+    fn test_ctrl_char_unsupported() {
+        let handler = InputHandler::new();
+
+        // Characters outside the supported ranges
+        assert_eq!(handler.ctrl_char('!'), None);
+        assert_eq!(handler.ctrl_char('@'), None);
+        assert_eq!(handler.ctrl_char(' '), None);
+    }
+
+    // ----------------------------------------
+    // f_key tests
+    // ----------------------------------------
+
+    #[test]
+    fn test_f_key_without_modifiers() {
+        let handler = InputHandler::new();
+
+        // F1-F4 use SS3 sequences
+        assert_eq!(handler.f_key(1), TerminalInput::Escape("\x1bOP".to_string()));
+        assert_eq!(handler.f_key(2), TerminalInput::Escape("\x1bOQ".to_string()));
+        assert_eq!(handler.f_key(3), TerminalInput::Escape("\x1bOR".to_string()));
+        assert_eq!(handler.f_key(4), TerminalInput::Escape("\x1bOS".to_string()));
+
+        // F5-F12 use CSI sequences
+        assert_eq!(handler.f_key(5), TerminalInput::Escape("\x1b[15~".to_string()));
+        assert_eq!(handler.f_key(6), TerminalInput::Escape("\x1b[17~".to_string()));
+        assert_eq!(handler.f_key(7), TerminalInput::Escape("\x1b[18~".to_string()));
+        assert_eq!(handler.f_key(8), TerminalInput::Escape("\x1b[19~".to_string()));
+        assert_eq!(handler.f_key(9), TerminalInput::Escape("\x1b[20~".to_string()));
+        assert_eq!(handler.f_key(10), TerminalInput::Escape("\x1b[21~".to_string()));
+        assert_eq!(handler.f_key(11), TerminalInput::Escape("\x1b[23~".to_string()));
+        assert_eq!(handler.f_key(12), TerminalInput::Escape("\x1b[24~".to_string()));
+    }
+
+    #[test]
+    fn test_f_key_with_shift_modifier() {
+        let mut handler = InputHandler::new();
+        handler.modifiers_mut().shift = true;
+
+        // Shift modifier adds ";2" prefix
+        assert_eq!(handler.f_key(1), TerminalInput::Escape("\x1b[1;2P".to_string()));
+        assert_eq!(handler.f_key(5), TerminalInput::Escape("\x1b[15;2~".to_string()));
+    }
+
+    #[test]
+    fn test_f_key_with_alt_modifier() {
+        let mut handler = InputHandler::new();
+        handler.modifiers_mut().alt = true;
+
+        // Alt modifier = 2, so modifier+1 = 3
+        assert_eq!(handler.f_key(1), TerminalInput::Escape("\x1b[1;3P".to_string()));
+        assert_eq!(handler.f_key(12), TerminalInput::Escape("\x1b[24;3~".to_string()));
+    }
+
+    #[test]
+    fn test_f_key_with_ctrl_modifier() {
+        let mut handler = InputHandler::new();
+        handler.modifiers_mut().ctrl = true;
+
+        // Ctrl modifier = 4, so modifier+1 = 5
+        assert_eq!(handler.f_key(1), TerminalInput::Escape("\x1b[1;5P".to_string()));
+        assert_eq!(handler.f_key(5), TerminalInput::Escape("\x1b[15;5~".to_string()));
+    }
+
+    #[test]
+    fn test_f_key_invalid() {
+        let handler = InputHandler::new();
+
+        assert_eq!(handler.f_key(0), TerminalInput::None);
+        assert_eq!(handler.f_key(13), TerminalInput::None);
+        assert_eq!(handler.f_key(255), TerminalInput::None);
+    }
+
+    // ----------------------------------------
+    // apply_modifiers tests
+    // ----------------------------------------
+
+    #[test]
+    fn test_apply_modifiers_no_modifiers() {
+        let handler = InputHandler::new();
+
+        let result = handler.apply_modifiers("\x1b[A", "\x1b[1", 'A');
+        assert_eq!(result, TerminalInput::Escape("\x1b[A".to_string()));
+    }
+
+    #[test]
+    fn test_apply_modifiers_with_shift() {
+        let mut handler = InputHandler::new();
+        handler.modifiers_mut().shift = true;
+
+        let result = handler.apply_modifiers("\x1b[A", "\x1b[1", 'A');
+        assert_eq!(result, TerminalInput::Escape("\x1b[1;2A".to_string()));
+    }
+
+    #[test]
+    fn test_apply_modifiers_with_ctrl_alt() {
+        let mut handler = InputHandler::new();
+        handler.modifiers_mut().ctrl = true;
+        handler.modifiers_mut().alt = true;
+
+        // Ctrl(4) + Alt(2) = 6, so modifier+1 = 7
+        let result = handler.apply_modifiers("\x1b[B", "\x1b[1", 'B');
+        assert_eq!(result, TerminalInput::Escape("\x1b[1;7B".to_string()));
+    }
+
+    // ----------------------------------------
+    // handle_character tests
+    // ----------------------------------------
+
+    #[test]
+    fn test_handle_character_regular() {
+        let mut handler = InputHandler::new();
+
+        assert_eq!(handler.handle_character("a"), TerminalInput::Char('a'));
+        assert_eq!(handler.handle_character("Z"), TerminalInput::Char('Z'));
+        assert_eq!(handler.handle_character("1"), TerminalInput::Char('1'));
+    }
+
+    #[test]
+    fn test_handle_character_empty() {
+        let mut handler = InputHandler::new();
+
+        assert_eq!(handler.handle_character(""), TerminalInput::None);
+    }
+
+    #[test]
+    fn test_handle_character_with_ctrl() {
+        let mut handler = InputHandler::new();
+        handler.modifiers_mut().ctrl = true;
+
+        assert_eq!(handler.handle_character("a"), TerminalInput::Char('\x01'));
+        assert_eq!(handler.handle_character("m"), TerminalInput::Char('\x0d'));
+    }
+
+    #[test]
+    fn test_handle_character_with_alt() {
+        let mut handler = InputHandler::new();
+        handler.modifiers_mut().alt = true;
+
+        // Alt+key sends ESC followed by the character
+        assert_eq!(
+            handler.handle_character("a"),
+            TerminalInput::Escape("\x1ba".to_string())
+        );
+        assert_eq!(
+            handler.handle_character("x"),
+            TerminalInput::Escape("\x1bx".to_string())
+        );
+    }
+
+    #[test]
+    fn test_handle_character_ctrl_takes_precedence_over_alt() {
+        let mut handler = InputHandler::new();
+        handler.modifiers_mut().ctrl = true;
+        handler.modifiers_mut().alt = true;
+
+        // Ctrl should be processed first
+        assert_eq!(handler.handle_character("a"), TerminalInput::Char('\x01'));
+    }
+
+    // ========================================
+    // Integration-style tests for modifiers
+    // ========================================
+
+    #[test]
+    fn test_modifier_state_update_from_state_all_modifiers() {
+        use winit::keyboard::ModifiersState;
+
         let mut state = ModifierState::new();
-        assert!(!state.any_pressed());
+        let mods = ModifiersState::all();
+        state.update_from_state(mods);
 
-        state.shift = true;
-        assert!(state.any_pressed());
-        assert_eq!(state.as_escape_modifier(), 1);
-
-        state.alt = true;
-        assert_eq!(state.as_escape_modifier(), 3);
-
-        state.ctrl = true;
-        assert_eq!(state.as_escape_modifier(), 7);
+        assert!(state.shift);
+        assert!(state.ctrl);
+        assert!(state.alt);
+        assert!(state.super_key);
     }
 }
