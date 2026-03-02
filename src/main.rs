@@ -1153,15 +1153,12 @@ impl TerminalApp {
 
     /// Get the current working directory of a pane's PTY process
     fn get_pane_cwd(&self, pane: &Pane) -> String {
-        // On Linux, we can read /proc/<pid>/cwd
-        // This requires the child process PID, which we'd need to get from the PTY
-        
-        // For now, fall back to the initial directory
-        // In a full implementation, we'd:
-        // 1. Store the child PID when spawning the PTY
-        // 2. Read /proc/<pid>/cwd
-        // 3. Or use shell integration to track directory changes
-        
+        // First check if we have a tracked directory from OSC 7 shell integration
+        if let Some(cwd) = pane.parser.get_current_directory() {
+            return cwd.to_string();
+        }
+
+        // Fall back to the initial directory
         std::env::current_dir()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|_| "~".to_string())

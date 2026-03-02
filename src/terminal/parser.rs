@@ -147,6 +147,8 @@ pub struct ParserState {
     pub pending_responses: Vec<DeviceStatusResponse>,
     /// Total number of rows in terminal (for scroll region calculations)
     rows: usize,
+    /// Current working directory (tracked via OSC 7 shell integration)
+    pub current_directory: Option<String>,
 }
 
 impl Default for ParserState {
@@ -166,6 +168,7 @@ impl Default for ParserState {
             origin_mode: false,
             pending_responses: Vec::new(),
             rows: 24, // Default 24-line terminal
+            current_directory: None,
         }
     }
 }
@@ -426,6 +429,56 @@ impl TerminalParser {
             _ => None,
         }
     }
+
+    /// Get the current working directory tracked via OSC 7.
+    pub fn get_current_directory(&self) -> Option<&str> {
+        self.state.current_directory.as_deref()
+    }
+}
+
+/// Parse a file:// URL and extract the path.
+/// Format: file://hostname/path
+fn parse_file_url(url: &str) -> Option<String> {
+    if !url.starts_with("file://") {
+        return None;
+    }
+
+    // Skip "file://" prefix
+    let rest = &url[7..];
+
+    // Find the start of the path (after hostname)
+    // Path starts at the first / after file://
+    let path_start = rest.find('/')?;
+    let path = &rest[path_start..];
+
+    // URL decode the path (handle %XX sequences)
+    Some(urlencoding_decode(path))
+}
+
+/// URL decode a string (handle %XX sequences).
+fn urlencoding_decode(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        if c == '%' {
+            // Try to read two hex digits
+            let hex: String = chars.by_ref().take(2).collect();
+            if hex.len() == 2 {
+                if let Ok(byte) = u8::from_str_radix(&hex, 16) {
+                    result.push(byte as char);
+                    continue;
+                }
+            }
+            // If parsing failed, keep the % and continue
+            result.push('%');
+            result.push_str(&hex);
+        } else {
+            result.push(c);
+        }
+    }
+
+    result
 }
 
 /// Wrapper that forwards parser events to both state and output.
@@ -524,8 +577,22 @@ impl<O: TerminalOutput> Perform for ParserOutputWrapper<'_, O> {
         // End of DCS
     }
 
-    fn osc_dispatch(&mut self, _params: &[&[u8]], _bell_terminated: bool) {
+    fn osc_dispatch(&mut self, params: &[&[u8]], _bell_terminated: bool) {
         // OSC sequences - window titles, etc.
+        // OSC 7: Shell integration for current directory: ESC ] 7 ; file://hostname/path BEL
+        if params.len() >= 2 && params[0] == b"7" {
+            // Join all parts after "7;" in case the URL contains semicolons
+            let url_bytes: Vec<u8> = params[1..]
+                .iter()
+                .flat_map(|p| p.iter().copied())
+                .collect();
+
+            if let Ok(url) = std::str::from_utf8(&url_bytes) {
+                if let Some(path) = parse_file_url(url) {
+                    self.state.current_directory = Some(path);
+                }
+            }
+        }
     }
 
     fn csi_dispatch(
@@ -983,9 +1050,22 @@ impl Perform for ParserState {
     }
 
     /// Handle an OSC escape sequence (Operating System Command).
-    fn osc_dispatch(&mut self, _params: &[&[u8]], _bell_terminated: bool) {
+    fn osc_dispatch(&mut self, params: &[&[u8]], _bell_terminated: bool) {
         // OSC sequences for window titles, clipboard, etc.
-        // Example: ESC ] 0 ; title BEL
+        // OSC 7: Shell integration for current directory: ESC ] 7 ; file://hostname/path BEL
+        if params.len() >= 2 && params[0] == b"7" {
+            // Join all parts after "7;" in case the URL contains semicolons
+            let url_bytes: Vec<u8> = params[1..]
+                .iter()
+                .flat_map(|p| p.iter().copied())
+                .collect();
+
+            if let Ok(url) = std::str::from_utf8(&url_bytes) {
+                if let Some(path) = parse_file_url(url) {
+                    self.current_directory = Some(path);
+                }
+            }
+        }
     }
 
     /// Handle a CSI escape sequence.
@@ -2180,5 +2260,136 @@ mod tests {
 
         assert!(!parser.state.has_pending_responses());
         assert!(parser.state.take_responses().is_empty());
+    }
+
+    // ===== OSC 7 Directory Tracking Tests =====
+
+    #[test]
+    fn test_osc7_basic_directory() {
+        let mut parser = TerminalParser::new();
+
+        // Initial state: no directory tracked
+        assert!(parser.get_current_directory().is_none());
+
+        // OSC 7: file://hostname/path
+        // ESC ] 7 ; file://hostname/path BEL
+        parser.parse_bytes(b"\x1B]7;file://localhost/home/user\x07");
+
+        assert_eq!(parser.get_current_directory(), Some("/home/user"));
+    }
+
+    #[test]
+    fn test_osc7_with_different_hostname() {
+        let mut parser = TerminalParser::new();
+
+        // Should work with any hostname
+        parser.parse_bytes(b"\x1B]7;file://myhost/tmp/test\x07");
+
+        assert_eq!(parser.get_current_directory(), Some("/tmp/test"));
+    }
+
+    #[test]
+    fn test_osc7_root_directory() {
+        let mut parser = TerminalParser::new();
+
+        parser.parse_bytes(b"\x1B]7;file://localhost/\x07");
+
+        assert_eq!(parser.get_current_directory(), Some("/"));
+    }
+
+    #[test]
+    fn test_osc7_url_encoded_path() {
+        let mut parser = TerminalParser::new();
+
+        // Space encoded as %20
+        parser.parse_bytes(b"\x1B]7;file://localhost/home/my%20docs\x07");
+
+        assert_eq!(parser.get_current_directory(), Some("/home/my docs"));
+    }
+
+    #[test]
+    fn test_osc7_url_encoded_special_chars() {
+        let mut parser = TerminalParser::new();
+
+        // %3D = '=', %26 = '&', %25 = '%'
+        parser.parse_bytes(b"\x1B]7;file://localhost/path%3Dwith%26special%25chars\x07");
+
+        assert_eq!(
+            parser.get_current_directory(),
+            Some("/path=with&special%chars")
+        );
+    }
+
+    #[test]
+    fn test_osc7_deep_path() {
+        let mut parser = TerminalParser::new();
+
+        parser.parse_bytes(b"\x1B]7;file://localhost/a/b/c/d/e/f\x07");
+
+        assert_eq!(parser.get_current_directory(), Some("/a/b/c/d/e/f"));
+    }
+
+    #[test]
+    fn test_osc7_invalid_not_file_url() {
+        let mut parser = TerminalParser::new();
+
+        // Should not update for non-file URLs
+        parser.parse_bytes(b"\x1B]7;http://example.com/path\x07");
+
+        assert!(parser.get_current_directory().is_none());
+    }
+
+    #[test]
+    fn test_osc7_invalid_wrong_osc_number() {
+        let mut parser = TerminalParser::new();
+
+        // OSC 0 is for window title, should not affect directory
+        parser.parse_bytes(b"\x1B]0;file://localhost/home/user\x07");
+
+        assert!(parser.get_current_directory().is_none());
+    }
+
+    #[test]
+    fn test_osc7_updates_on_change() {
+        let mut parser = TerminalParser::new();
+
+        // First directory
+        parser.parse_bytes(b"\x1B]7;file://localhost/home/user\x07");
+        assert_eq!(parser.get_current_directory(), Some("/home/user"));
+
+        // Change to different directory
+        parser.parse_bytes(b"\x1B]7;file://localhost/tmp\x07");
+        assert_eq!(parser.get_current_directory(), Some("/tmp"));
+    }
+
+    #[test]
+    fn test_parse_file_url_helper() {
+        // Test the parse_file_url helper directly
+        assert_eq!(
+            parse_file_url("file://localhost/home/user"),
+            Some("/home/user".to_string())
+        );
+        assert_eq!(
+            parse_file_url("file://host/"),
+            Some("/".to_string())
+        );
+        assert_eq!(
+            parse_file_url("http://localhost/home"),
+            None
+        );
+        assert_eq!(parse_file_url("file://"), None);
+        assert_eq!(parse_file_url("not a url"), None);
+    }
+
+    #[test]
+    fn test_urlencoding_decode_helper() {
+        assert_eq!(urlencoding_decode("/home/user"), "/home/user");
+        assert_eq!(urlencoding_decode("/home/my%20docs"), "/home/my docs");
+        assert_eq!(urlencoding_decode("%2F"), "/");
+        assert_eq!(urlencoding_decode("100%25"), "100%");
+        assert_eq!(urlencoding_decode("%3D%26"), "=&");
+        // Invalid hex should preserve original
+        assert_eq!(urlencoding_decode("%ZZ"), "%ZZ");
+        assert_eq!(urlencoding_decode("%1"), "%1");
     }
 }
