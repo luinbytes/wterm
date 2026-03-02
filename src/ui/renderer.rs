@@ -348,4 +348,87 @@ mod tests {
         let err = RendererError::SurfaceCreation("test".to_string());
         assert!(err.to_string().contains("test"));
     }
+
+    #[test]
+    fn test_default_font_size() {
+        assert_eq!(DEFAULT_FONT_SIZE, 16.0);
+    }
+
+    #[test]
+    fn test_renderer_error_adapter_request() {
+        let err = RendererError::AdapterRequest("No suitable GPU found".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Failed to request adapter"));
+        assert!(msg.contains("No suitable GPU found"));
+    }
+
+    #[test]
+    fn test_renderer_error_device_request() {
+        let err = RendererError::DeviceRequest("Device limit exceeded".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Failed to request device"));
+        assert!(msg.contains("Device limit exceeded"));
+    }
+
+    #[test]
+    fn test_renderer_error_surface_configuration() {
+        let err = RendererError::SurfaceConfiguration;
+        let msg = err.to_string();
+        assert!(msg.contains("Failed to configure surface"));
+    }
+
+    #[test]
+    fn test_renderer_error_texture_acquisition() {
+        let err = RendererError::TextureAcquisition("Texture lost".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Failed to get current texture"));
+        assert!(msg.contains("Texture lost"));
+    }
+
+    #[test]
+    fn test_renderer_error_render() {
+        let err = RendererError::Render("Pipeline error".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Render error"));
+        assert!(msg.contains("Pipeline error"));
+    }
+
+    #[test]
+    fn test_renderer_error_text_from_text_error() {
+        let text_err = TextError::FontLoad("Font not found".to_string());
+        let renderer_err: RendererError = text_err.into();
+        let msg = renderer_err.to_string();
+        assert!(msg.contains("Text rendering error"));
+        assert!(msg.contains("Font not found"));
+    }
+
+    #[test]
+    fn test_renderer_error_debug() {
+        let err = RendererError::SurfaceCreation("debug test".to_string());
+        // Debug trait should work without panic
+        let _debug_str = format!("{:?}", err);
+    }
+
+    #[test]
+    fn test_renderer_error_surface_creation_empty_message() {
+        let err = RendererError::SurfaceCreation(String::new());
+        let msg = err.to_string();
+        assert!(msg.contains("Failed to create wgpu surface"));
+    }
+
+    #[test]
+    fn test_renderer_error_adapter_request_empty_message() {
+        let err = RendererError::AdapterRequest(String::new());
+        let msg = err.to_string();
+        assert!(msg.contains("Failed to request adapter"));
+    }
+
+    #[test]
+    fn test_renderer_error_render_with_multiline() {
+        let err = RendererError::Render("Line 1\nLine 2\nLine 3".to_string());
+        let msg = err.to_string();
+        assert!(msg.contains("Render error"));
+        assert!(msg.contains("Line 1"));
+        assert!(msg.contains("Line 3"));
+    }
 }
