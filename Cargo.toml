@@ -56,6 +56,10 @@ uuid = { version = "1.21.0", features = ["v4"] }
 # Search
 regex = "1"
 
+# WASM plugin system
+wasmtime = { version = "27", default-features = false, features = ["cranelift"] }
+wasmtime-wasi = { version = "27", default-features = false }
+
 [dev-dependencies]
 tokio-test = "0.4"
 
