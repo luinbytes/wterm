@@ -5,9 +5,11 @@
 #![allow(dead_code)]
 
 use std::io::{Read, Write};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::thread::{self, JoinHandle};
+use std::time::Duration;
 
 use portable_pty::{native_pty_system, CommandBuilder, PtyPair, PtySize};
 use thiserror::Error;
@@ -186,7 +188,9 @@ pub struct PtyAsyncReader {
     /// Channel receiver for PTY data
     rx: Receiver<Vec<u8>>,
     /// Handle to the reader thread (for cleanup)
-    _thread: JoinHandle<()>,
+    thread: Option<JoinHandle<()>>,
+    /// Flag to signal the thread to stop
+    running: Arc<AtomicBool>,
 }
 
 impl PtyAsyncReader {
@@ -194,13 +198,23 @@ impl PtyAsyncReader {
     pub fn try_recv(&self) -> Result<Vec<u8>, TryRecvError> {
         self.rx.try_recv()
     }
-    
+
     /// Check if data is available
     pub fn has_data(&self) -> bool {
         match self.rx.try_recv() {
             Ok(_) => true,
             Err(TryRecvError::Empty) => false,
             Err(TryRecvError::Disconnected) => false,
+        }
+    }
+
+    /// Signal the reader thread to stop and wait for it to finish
+    fn stop(&mut self) {
+        self.running.store(false, Ordering::Release);
+        if let Some(thread) = self.thread.take() {
+            // Give the thread a moment to exit gracefully
+            // Don't block indefinitely if the thread is stuck
+            let _ = thread.join();
         }
     }
 }
@@ -305,15 +319,19 @@ impl PtySession {
         );
         
         let reader = Arc::new(Mutex::new(reader));
-        
-        // On Windows, spawn a background reader thread
+
+        // Running flag for async reader thread
+        let running = Arc::new(AtomicBool::new(true));
+
+        // Spawn a background reader thread
         // This is necessary because portable_pty doesn't support non-blocking reads on Windows
         let async_reader = {
             let (tx, rx) = mpsc::channel();
             let reader_clone = Arc::clone(&reader);
-            
+            let running_clone = Arc::clone(&running);
+
             let thread = thread::spawn(move || {
-                loop {
+                while running_clone.load(Ordering::Acquire) {
                     let mut buf = vec![0u8; 4096];
                     let read_result = {
                         match reader_clone.lock() {
@@ -321,7 +339,7 @@ impl PtySession {
                             Err(_) => break, // Lock poisoned, exit thread
                         }
                     };
-                    
+
                     match read_result {
                         Ok(0) => {
                             // EOF - PTY closed
@@ -346,7 +364,8 @@ impl PtySession {
             
             Some(PtyAsyncReader {
                 rx,
-                _thread: thread,
+                thread: Some(thread),
+                running,
             })
         };
 
@@ -460,6 +479,60 @@ impl PtySession {
     /// Get a clone of the reader for use in another thread
     pub fn reader_clone(&self) -> Arc<Mutex<PtyReader>> {
         Arc::clone(&self.reader)
+    }
+}
+
+impl Drop for PtySession {
+    fn drop(&mut self) {
+        tracing::debug!("Dropping PtySession, cleaning up child process");
+
+        // First, stop the async reader thread
+        if let Some(ref mut async_reader) = self.async_reader {
+            async_reader.stop();
+        }
+
+        // Try to terminate the child process gracefully
+        // On Unix, this sends SIGTERM to the process group
+        #[cfg(unix)]
+        {
+            // Try to get the process ID and send SIGTERM
+            if let Some(pid) = self.child.process_id() {
+                // Send SIGTERM to the process
+                // Using kill -pid to kill the process group
+                let _ = unsafe {
+                    libc::kill(-(pid as i32), libc::SIGTERM)
+                };
+            }
+        }
+
+        // Give the process a moment to exit gracefully
+        let grace_period = Duration::from_millis(100);
+        let start = std::time::Instant::now();
+
+        // Wait briefly for graceful shutdown
+        while start.elapsed() < grace_period {
+            match self.child.try_wait() {
+                Ok(Some(_)) => {
+                    tracing::debug!("Child process exited gracefully");
+                    return;
+                }
+                Ok(None) => {
+                    // Still running, wait a bit more
+                    thread::sleep(Duration::from_millis(10));
+                }
+                Err(e) => {
+                    tracing::debug!("Error waiting for child process: {}", e);
+                    break;
+                }
+            }
+        }
+
+        // Force kill if still running
+        tracing::debug!("Force killing child process");
+        let _ = self.child.kill();
+
+        // Wait for the process to be reaped to avoid zombies
+        let _ = self.child.wait();
     }
 }
 

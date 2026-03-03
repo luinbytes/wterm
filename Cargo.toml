@@ -60,6 +60,9 @@ regex = "1"
 wasmtime = { version = "27", default-features = false, features = ["cranelift"] }
 wasmtime-wasi = { version = "27", default-features = false }
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [dev-dependencies]
 tokio-test = "0.4"
 wat = "1"

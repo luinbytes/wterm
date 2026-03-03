@@ -3865,6 +3865,7 @@ dependencies = [
  "fontdue",
  "futures",
  "keyring",
+ "libc",
  "once_cell",
  "pollster",
  "portable-pty",
