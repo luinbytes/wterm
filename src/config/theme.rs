@@ -1,9 +1,13 @@
 //! Color theme configuration
+//!
+//! This module provides theme types for future config support.
+//! Currently unused but kept for integration with the config system.
 
 use serde::{Deserialize, Serialize};
 
 /// RGB color representation
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[allow(dead_code)]
 pub struct Color {
     /// Red component (0-255)
     pub r: u8,
@@ -13,6 +17,7 @@ pub struct Color {
     pub b: u8,
 }
 
+#[allow(dead_code)]
 impl Color {
     /// Create a new color from RGB values
     pub const fn new(r: u8, g: u8, b: u8) -> Self {
@@ -39,6 +44,7 @@ impl Color {
 
 /// ANSI 16-color palette
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[allow(dead_code)]
 pub struct AnsiColors {
     /// Black (color 0)
     pub black: Color,
@@ -76,6 +82,7 @@ pub struct AnsiColors {
 
 /// Complete theme definition
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[allow(dead_code)]
 pub struct Theme {
     /// Theme name
     pub name: String,
@@ -103,6 +110,7 @@ fn default_selection_fg() -> Color {
     Color::new(0xff, 0xff, 0xff)
 }
 
+#[allow(dead_code)]
 impl Theme {
     /// Get the default dark theme
     pub fn default_dark() -> Self {
@@ -212,6 +220,7 @@ impl Theme {
 
 /// Theme configuration - either a built-in theme name or custom colors
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct ThemeConfig {
     /// Name of a built-in theme (default, dracula, gruvbox)
     #[serde(default = "default_theme_name")]
@@ -234,6 +243,7 @@ impl Default for ThemeConfig {
     }
 }
 
+#[allow(dead_code)]
 impl ThemeConfig {
     /// Get the effective theme (custom or built-in)
     pub fn resolve(&self) -> Theme {

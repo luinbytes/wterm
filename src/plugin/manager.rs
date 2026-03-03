@@ -2,6 +2,8 @@
 //!
 //! This module implements a sandboxed plugin system using wasmtime.
 //! Plugins have NO access to filesystem, network, or environment variables.
+//!
+//! Currently unused but kept for future plugin system integration.
 
 use crate::plugin::{HookResult, PluginContext, PluginMetadata};
 use anyhow::{anyhow, Context, Result};
@@ -14,6 +16,7 @@ use wasmtime::*;
 use wasmtime_wasi::{ResourceTable, WasiCtx, WasiCtxBuilder, WasiView};
 
 /// State for WASM plugin execution
+#[allow(dead_code)]
 pub struct PluginState {
     /// WASI context (sandboxed - no filesystem/network/env access)
     wasi: WasiCtx,
@@ -32,6 +35,7 @@ impl WasiView for PluginState {
 }
 
 /// Loaded plugin data stored in RefCell for interior mutability
+#[allow(dead_code)]
 struct LoadedPlugin {
     /// Plugin metadata
     metadata: PluginMetadata,
@@ -50,6 +54,7 @@ struct LoadedPlugin {
 }
 
 /// Plugin manager that loads and runs WASM plugins
+#[allow(dead_code)]
 pub struct PluginManager {
     /// Loaded plugins indexed by ID (uses Rc for single-threaded access)
     plugins: Rc<RefCell<HashMap<String, LoadedPlugin>>>,
@@ -63,6 +68,7 @@ impl Default for PluginManager {
     }
 }
 
+#[allow(dead_code)]
 impl PluginManager {
     /// Create a new plugin manager
     pub fn new() -> Self {
@@ -337,11 +343,13 @@ impl PluginManager {
 }
 
 /// Thread-safe plugin manager for use across threads
+#[allow(dead_code)]
 pub struct ThreadSafePluginManager {
     plugins: RwLock<HashMap<String, ThreadSafePlugin>>,
     engine: Engine,
 }
 
+#[allow(dead_code)]
 struct ThreadSafePlugin {
     metadata: PluginMetadata,
     module: Module,
@@ -356,6 +364,7 @@ impl Default for ThreadSafePluginManager {
     }
 }
 
+#[allow(dead_code)]
 impl ThreadSafePluginManager {
     pub fn new() -> Self {
         let mut config = Config::new();

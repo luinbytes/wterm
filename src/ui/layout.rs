@@ -51,6 +51,7 @@ pub struct Pane {
     /// Unique identifier for this pane
     pub id: Uuid,
     /// Pane title (can be set dynamically from shell)
+    #[allow(dead_code)]
     pub title: String,
     /// PTY session for this pane
     pub pty: Arc<Mutex<PtySession>>,
@@ -107,6 +108,7 @@ pub enum LayoutNode {
     },
 }
 
+#[allow(dead_code)]
 impl LayoutNode {
     /// Check if this node is a pane
     pub fn is_pane(&self) -> bool {
@@ -451,6 +453,7 @@ impl LayoutTree {
     }
 
     /// Get the root node (mutable, for rendering)
+    #[allow(dead_code)]
     pub fn root_mut(&mut self) -> &mut LayoutNode {
         &mut self.root
     }

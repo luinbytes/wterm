@@ -122,6 +122,7 @@ impl Default for FontConfig {
 
 /// Window configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct WindowConfig {
     /// Horizontal and vertical padding in pixels
     #[serde(default = "default_padding")]
@@ -148,6 +149,7 @@ impl Default for WindowConfig {
     }
 }
 
+#[allow(dead_code)]
 impl Config {
     /// Load configuration from the default location
     ///

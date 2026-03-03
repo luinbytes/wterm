@@ -11,6 +11,7 @@ use std::thread;
 use std::time::Instant;
 
 /// Context for generating AI suggestions
+#[allow(dead_code)]
 pub struct SuggestionContext {
     /// Current working directory
     pub current_dir: Option<String>,
@@ -240,6 +241,7 @@ impl AICommandPalette {
     }
 
     /// Get suggested commands based on context
+    #[allow(dead_code)]
     pub fn get_suggestions(&self, context: &SuggestionContext) -> Vec<String> {
         let mut suggestions = Vec::new();
 

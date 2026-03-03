@@ -116,16 +116,19 @@ impl StatusBar {
     }
 
     /// Clear the current error
+    #[allow(dead_code)]
     pub fn clear_error(&mut self) {
         self.error = None;
     }
 
     /// Check if there's an error to display
+    #[allow(dead_code)]
     pub fn has_error(&self) -> bool {
         self.error.is_some()
     }
 
     /// Get the error message if present
+    #[allow(dead_code)]
     pub fn get_error(&self) -> Option<&str> {
         self.error.as_ref().map(|e| e.message.as_str())
     }
@@ -136,6 +139,7 @@ impl StatusBar {
     }
 
     /// Clear all toasts
+    #[allow(dead_code)]
     pub fn clear_toasts(&mut self) {
         self.toasts.clear();
     }
@@ -154,11 +158,13 @@ impl StatusBar {
     }
 
     /// Set the toast timeout duration
+    #[allow(dead_code)]
     pub fn set_toast_timeout(&mut self, duration: Duration) {
         self.toast_timeout = duration;
     }
 
     /// Get toast messages to display
+    #[allow(dead_code)]
     pub fn get_toasts(&self) -> Vec<&str> {
         self.toasts.iter().map(|t| t.message.as_str()).collect()
     }
@@ -185,6 +191,7 @@ impl StatusBar {
     }
 
     /// Toggle status bar visibility
+    #[allow(dead_code)]
     pub fn toggle(&mut self) {
         self.visible = !self.visible;
     }

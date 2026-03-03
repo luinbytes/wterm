@@ -51,6 +51,7 @@ use anyhow::Result;
 
 /// Plugin context passed to hooks
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct PluginContext {
     /// Current working directory (if available)
     pub cwd: Option<String>,
@@ -61,6 +62,7 @@ pub struct PluginContext {
 
 /// Result from a plugin hook
 #[derive(Debug, Clone, Default)]
+#[allow(dead_code)]
 pub struct HookResult {
     /// Modified data (if the plugin wants to transform it)
     pub data: Option<Vec<u8>>,
@@ -72,6 +74,7 @@ pub struct HookResult {
 ///
 /// Plugins implement this trait to intercept and optionally modify
 /// terminal I/O. All hooks are optional - return `None` to pass through.
+#[allow(dead_code)]
 pub trait Plugin: Send + Sync {
     /// Unique plugin identifier
     fn id(&self) -> &str;
@@ -94,6 +97,7 @@ pub trait Plugin: Send + Sync {
 
 /// Plugin metadata loaded from WASM module
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct PluginMetadata {
     pub id: String,
     pub name: String,
