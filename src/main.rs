@@ -18,6 +18,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
+use config::{Config, Action, KeyCombo, Modifier};
 use terminal::pty::{PtyConfig, PtySession};
 use ui::ai_command_palette::AICommandPalette;
 use ui::input::InputHandler;
@@ -34,26 +35,11 @@ use winit::{
     window::{Window, WindowId},
 };
 
-/// Configuration for the terminal application
-#[allow(dead_code)]
-struct AppConfig {
-    /// Initial terminal columns
-    cols: u16,
-    /// Initial terminal rows
-    rows: u16,
-}
-
-impl Default for AppConfig {
-    fn default() -> Self {
-        Self {
-            cols: 120,
-            rows: 40,
-        }
-    }
-}
 
 /// Main application state
 struct TerminalApp {
+    /// Application configuration
+    config: Config,
     /// The winit window
     window: Option<Arc<Window>>,
     /// GPU renderer - stored as raw parts to avoid lifetime issues
@@ -101,6 +87,10 @@ struct RendererHolder {
 
 impl RendererHolder {
     async fn new(window: Arc<Window>) -> Result<Self, ui::renderer::RendererError> {
+        Self::new_with_config(window, 16.0).await
+    }
+
+    async fn new_with_config(window: Arc<Window>, font_size: f32) -> Result<Self, ui::renderer::RendererError> {
         use ui::renderer::RendererError;
 
         // Create instance - prefer DX12 on Windows for better cross-compile compatibility
@@ -173,9 +163,9 @@ impl RendererHolder {
 
         surface.configure(&device, &config);
 
-        // Create text renderer
+        // Create text renderer with config font size
         let window_size = (size.width, size.height);
-        let mut text_renderer = ui::text::TextRenderer::new(&device, 16.0, window_size)?;
+        let mut text_renderer = ui::text::TextRenderer::new(&device, font_size, window_size)?;
         
         // Initialize the render pipeline (creates bind_group_layout)
         text_renderer.init_pipeline(&device, surface_format);
@@ -273,12 +263,13 @@ impl RendererHolder {
         search_input: &str,
         ai_palette: &AICommandPalette,
         status_bar: &StatusBar,
+        padding: (u16, u16),
     ) -> Result<(), ui::renderer::RendererError> {
         // Clear previous frame's text
         self.text_renderer.clear();
 
         // Render all panes in the layout
-        self.render_node(layout.root(), cell_width, cell_height, focused_pane_id, search_state, search_input)?;
+        self.render_node(layout.root(), cell_width, cell_height, focused_pane_id, search_state, search_input, padding)?;
 
         // Render AI palette overlay if visible
         if ai_palette.is_visible() {
@@ -305,21 +296,22 @@ impl RendererHolder {
         focused_pane_id: uuid::Uuid,
         search_state: &SearchState,
         search_input: &str,
+        padding: (u16, u16),
     ) -> Result<(), ui::renderer::RendererError> {
         use ui::layout::LayoutNode;
 
         match node {
             LayoutNode::Pane(pane) => {
-                self.render_pane(pane, cell_width, cell_height, pane.id == focused_pane_id, search_state, search_input)?;
+                self.render_pane(pane, cell_width, cell_height, pane.id == focused_pane_id, search_state, search_input, padding)?;
             }
             LayoutNode::HorizontalSplit { children, .. } => {
                 for child in children {
-                    self.render_node(child, cell_width, cell_height, focused_pane_id, search_state, search_input)?;
+                    self.render_node(child, cell_width, cell_height, focused_pane_id, search_state, search_input, padding)?;
                 }
             }
             LayoutNode::VerticalSplit { children, .. } => {
                 for child in children {
-                    self.render_node(child, cell_width, cell_height, focused_pane_id, search_state, search_input)?;
+                    self.render_node(child, cell_width, cell_height, focused_pane_id, search_state, search_input, padding)?;
                 }
             }
         }
@@ -335,6 +327,7 @@ impl RendererHolder {
         is_focused: bool,
         search_state: &SearchState,
         search_input: &str,
+        padding: (u16, u16),
     ) -> Result<(), ui::renderer::RendererError> {
         use terminal::parser::Color;
 
@@ -345,10 +338,9 @@ impl RendererHolder {
         let rows = grid.rows();
         let cols = grid.cols();
 
-        // Warp-style: content starts with small padding from window edges
-        let padding = 8.0; // 8px padding
-        let content_offset_x = bounds.x as f32 + padding;
-        let content_offset_y = bounds.y as f32 + padding;
+        // Use padding from config
+        let content_offset_x = bounds.x as f32 + padding.0 as f32;
+        let content_offset_y = bounds.y as f32 + padding.1 as f32;
 
         // Render search bar if search is active on focused pane
         if is_focused && search_state.active {
@@ -1000,9 +992,20 @@ impl RendererHolder {
 
 impl TerminalApp {
     fn new() -> Self {
-        let _config = AppConfig::default();
+        // Load configuration from file or create defaults
+        let config = Config::load().unwrap_or_else(|e| {
+            tracing::warn!("Failed to load config, using defaults: {}", e);
+            Config::default()
+        });
+
+        // Calculate cell dimensions based on font settings
+        // Cell width is roughly 60% of font size for monospace fonts
+        let cell_width = (config.font.size * 0.6) as u32;
+        // Cell height includes line height multiplier
+        let cell_height = (config.font.size * config.font.line_height) as u32;
 
         Self {
+            config,
             window: None,
             renderer: None,
             layout: None,
@@ -1012,8 +1015,8 @@ impl TerminalApp {
             running: false,
             last_frame: Instant::now(),
             frame_duration: Duration::from_micros(16_667), // ~60 FPS
-            cell_width: 10,
-            cell_height: 20,
+            cell_width: cell_width.max(8), // Minimum 8px width
+            cell_height: cell_height.max(12), // Minimum 12px height
             cursor_position: None,
             modifiers: ModifiersState::default(),
             search_state: SearchState::new(),
@@ -1025,36 +1028,193 @@ impl TerminalApp {
 
     /// Create initial pane with PTY
     fn create_initial_pane(&self, cols: u16, rows: u16) -> Result<Pane> {
+        // Use config shell if specified, otherwise use default
+        let shell = self.config.terminal.shell.clone();
+
         let config = PtyConfig {
             cols,
             rows,
-            ..Default::default()
+            shell,
+            working_dir: self.config.terminal.working_dir.clone(),
+            env: self.config.terminal.env.clone(),
         };
 
         let pty = PtySession::spawn(config)?;
         let bounds = Rect::new(0, 0, cols as u32 * self.cell_width, rows as u32 * self.cell_height);
-        
+
         let mut pane = Pane::new(pty, cols as usize, rows as usize, bounds);
-        
+
         // Add test text to verify rendering
         let test_str = "Hello World! This is a test.";
         for (i, ch) in test_str.chars().enumerate() {
             pane.grid.put_char_at(0, i, ch);
         }
-        
+
         Ok(pane)
     }
 
     /// Create a new pane with PTY
     fn create_pane(&self, cols: usize, rows: usize, bounds: Rect) -> Result<Pane> {
+        // Use config shell if specified, otherwise use default
+        let shell = self.config.terminal.shell.clone();
+
         let config = PtyConfig {
             cols: cols as u16,
             rows: rows as u16,
-            ..Default::default()
+            shell,
+            working_dir: self.config.terminal.working_dir.clone(),
+            env: self.config.terminal.env.clone(),
         };
 
         let pty = PtySession::spawn(config)?;
         Ok(Pane::new(pty, cols, rows, bounds))
+    }
+
+    /// Convert winit key event to config KeyCombo and look up the action
+    fn lookup_keybinding_action(&self, key: &Key, modifiers: ModifiersState) -> Option<Action> {
+        // Convert logical key to string
+        let key_str = match key {
+            Key::Character(c) => c.to_string(),
+            Key::Named(named) => {
+                // Convert named keys to our expected format
+                match named {
+                    NamedKey::Enter => "Enter".to_string(),
+                    NamedKey::Tab => "Tab".to_string(),
+                    NamedKey::Space => " ".to_string(),
+                    NamedKey::Backspace => "Backspace".to_string(),
+                    NamedKey::Escape => "Escape".to_string(),
+                    NamedKey::ArrowUp => "Up".to_string(),
+                    NamedKey::ArrowDown => "Down".to_string(),
+                    NamedKey::ArrowLeft => "Left".to_string(),
+                    NamedKey::ArrowRight => "Right".to_string(),
+                    NamedKey::Home => "Home".to_string(),
+                    NamedKey::End => "End".to_string(),
+                    NamedKey::PageUp => "PageUp".to_string(),
+                    NamedKey::PageDown => "PageDown".to_string(),
+                    NamedKey::Insert => "Insert".to_string(),
+                    NamedKey::Delete => "Delete".to_string(),
+                    NamedKey::F1 => "F1".to_string(),
+                    NamedKey::F2 => "F2".to_string(),
+                    NamedKey::F3 => "F3".to_string(),
+                    NamedKey::F4 => "F4".to_string(),
+                    NamedKey::F5 => "F5".to_string(),
+                    NamedKey::F6 => "F6".to_string(),
+                    NamedKey::F7 => "F7".to_string(),
+                    NamedKey::F8 => "F8".to_string(),
+                    NamedKey::F9 => "F9".to_string(),
+                    NamedKey::F10 => "F10".to_string(),
+                    NamedKey::F11 => "F11".to_string(),
+                    NamedKey::F12 => "F12".to_string(),
+                    _ => return None,
+                }
+            }
+            _ => return None,
+        };
+
+        // Build modifier list
+        let mut mods = Vec::new();
+        if modifiers.control_key() {
+            mods.push(Modifier::Ctrl);
+        }
+        if modifiers.alt_key() {
+            mods.push(Modifier::Alt);
+        }
+        if modifiers.shift_key() {
+            mods.push(Modifier::Shift);
+        }
+        if modifiers.super_key() {
+            mods.push(Modifier::Super);
+        }
+
+        // Create KeyCombo and look up in config
+        let combo = KeyCombo::new(key_str, mods);
+        self.config.keybindings.get_action(&combo).cloned()
+    }
+
+    /// Execute a keybinding action. Returns true if action was handled.
+    fn execute_action(&mut self, action: Action) -> bool {
+        match action {
+            Action::Copy => {
+                self.handle_copy();
+            }
+            Action::Paste => {
+                let _ = self.handle_paste();
+            }
+            Action::NewTab => {
+                // TODO: Implement tab management
+                tracing::info!("NewTab action triggered (not yet implemented)");
+            }
+            Action::CloseTab => {
+                self.handle_close_pane();
+            }
+            Action::SplitHorizontal => {
+                self.handle_split(SplitDirection::Horizontal);
+            }
+            Action::SplitVertical => {
+                self.handle_split(SplitDirection::Vertical);
+            }
+            Action::FocusNext => {
+                self.handle_focus_next();
+            }
+            Action::FocusPrev => {
+                self.handle_focus_prev();
+            }
+            Action::Search => {
+                self.handle_toggle_search();
+            }
+            Action::IncreaseFontSize => {
+                // TODO: Implement font size adjustment
+                tracing::info!("IncreaseFontSize action triggered (not yet implemented)");
+            }
+            Action::DecreaseFontSize => {
+                // TODO: Implement font size adjustment
+                tracing::info!("DecreaseFontSize action triggered (not yet implemented)");
+            }
+            Action::ResetFontSize => {
+                // TODO: Implement font size reset
+                tracing::info!("ResetFontSize action triggered (not yet implemented)");
+            }
+            Action::ScrollUp => {
+                // TODO: Implement scrolling
+                tracing::debug!("ScrollUp action triggered");
+            }
+            Action::ScrollDown => {
+                // TODO: Implement scrolling
+                tracing::debug!("ScrollDown action triggered");
+            }
+            Action::ScrollPageUp => {
+                // TODO: Implement page scrolling
+                tracing::debug!("ScrollPageUp action triggered");
+            }
+            Action::ScrollPageDown => {
+                // TODO: Implement page scrolling
+                tracing::debug!("ScrollPageDown action triggered");
+            }
+            Action::ScrollToTop => {
+                // TODO: Implement scroll to top
+                tracing::debug!("ScrollToTop action triggered");
+            }
+            Action::ScrollToBottom => {
+                // TODO: Implement scroll to bottom
+                tracing::debug!("ScrollToBottom action triggered");
+            }
+            Action::ToggleFullscreen => {
+                if let Some(ref window) = self.window {
+                    let fullscreen = window.fullscreen().is_some();
+                    window.set_fullscreen(if fullscreen {
+                        None
+                    } else {
+                        Some(winit::window::Fullscreen::Borderless(None))
+                    });
+                }
+            }
+            Action::Quit => {
+                self.running = false;
+                // Note: We can't directly exit the event loop here
+                // The main loop will check self.running
+            }
+        }
+        true
     }
 
     /// Read and process PTY output from all panes (non-blocking)
@@ -1251,6 +1411,7 @@ impl TerminalApp {
                 &self.search_input,
                 &self.ai_palette,
                 &self.status_bar,
+                self.config.window.padding,
             ) {
                 tracing::error!("Render error: {}", e);
             }
@@ -1614,11 +1775,15 @@ impl TerminalApp {
 
 impl ApplicationHandler for TerminalApp {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        // Create window
+        // Calculate initial window size based on config terminal dimensions
+        let initial_width = self.config.terminal.cols as u32 * self.cell_width;
+        let initial_height = self.config.terminal.rows as u32 * self.cell_height;
+
+        // Create window with config-based size
         let window = match event_loop.create_window(
             Window::default_attributes()
                 .with_title("Warp FOSS")
-                .with_inner_size(PhysicalSize::new(1200, 800)),
+                .with_inner_size(PhysicalSize::new(initial_width.max(800), initial_height.max(600))),
         ) {
             Ok(w) => Arc::new(w),
             Err(e) => {
@@ -1629,13 +1794,16 @@ impl ApplicationHandler for TerminalApp {
             }
         };
 
-        // Get initial size
+        // Get actual size (may differ from requested)
         let size = window.inner_size();
         let cols = (size.width / self.cell_width) as u16;
         let rows = (size.height / self.cell_height) as u16;
 
-        // Initialize renderer
-        let renderer: Option<RendererHolder> = match pollster::block_on(RendererHolder::new(Arc::clone(&window))) {
+        // Initialize renderer with config font size
+        let renderer: Option<RendererHolder> = match pollster::block_on(RendererHolder::new_with_config(
+            Arc::clone(&window),
+            self.config.font.size,
+        )) {
             Ok(r) => Some(r),
             Err(e) => {
                 let error_msg = format!("Renderer error: {}. Some features may not work.", e);
@@ -1645,8 +1813,13 @@ impl ApplicationHandler for TerminalApp {
             }
         };
 
-        // Create initial pane and layout
-        let initial_pane: Option<Pane> = match self.create_initial_pane(cols.max(40), rows.max(10)) {
+        // Create initial pane and layout using config terminal size
+        let config_cols = self.config.terminal.cols;
+        let config_rows = self.config.terminal.rows;
+        let initial_pane: Option<Pane> = match self.create_initial_pane(
+            cols.max(config_cols),
+            rows.max(config_rows),
+        ) {
             Ok(p) => Some(p),
             Err(e) => {
                 let error_msg = Self::format_pty_error(&e);
@@ -1675,7 +1848,8 @@ impl ApplicationHandler for TerminalApp {
             tracing::warn!("Failed to initialize clipboard: {}", e);
         }
 
-        tracing::info!("Terminal application started with layout support");
+        tracing::info!("Terminal application started with config: {}x{} terminal, {}px font",
+            self.config.terminal.cols, self.config.terminal.rows, self.config.font.size);
     }
 
     fn window_event(
@@ -1773,93 +1947,13 @@ impl ApplicationHandler for TerminalApp {
                     }
                 }
 
-                // Check for other shortcuts
+                // Check for keybindings from config
                 if event.state == ElementState::Pressed {
-                    // Check for search toggle (Ctrl+Shift+F)
-                    match &event.logical_key {
-                        Key::Character(c) if c == "f" || c == "F" => {
-                            let modifiers = self.input_handler.modifiers();
-                            if modifiers.ctrl && modifiers.shift {
-                                self.handle_toggle_search();
-                                return;
-                            }
-                        }
-                        _ => {}
-                    }
-
-                    // Check for pane splitting (Ctrl+D for horizontal, Ctrl+Shift+D for vertical)
-                    match &event.logical_key {
-                        Key::Character(c) if c == "d" || c == "D" => {
-                            let modifiers = self.input_handler.modifiers();
-                            if modifiers.ctrl {
-                                if modifiers.shift {
-                                    // Ctrl+Shift+D = Vertical split
-                                    self.handle_split(SplitDirection::Vertical);
-                                    return;
-                                } else {
-                                    // Ctrl+D = Horizontal split
-                                    self.handle_split(SplitDirection::Horizontal);
-                                    return;
-                                }
-                            }
-                        }
-                        Key::Character(c) if c == "w" || c == "W" => {
-                            let modifiers = self.input_handler.modifiers();
-                            if modifiers.ctrl && !modifiers.shift {
-                                // Ctrl+W = Close pane
-                                self.handle_close_pane();
-                                return;
-                            }
-                        }
-                        // Copy with Ctrl+Shift+C
-                        Key::Character(c) if c == "c" || c == "C" => {
-                            let modifiers = self.input_handler.modifiers();
-                            if modifiers.ctrl && modifiers.shift {
-                                self.handle_copy();
-                                return;
-                            }
-                        }
-                        Key::Named(NamedKey::Tab) => {
-                            let modifiers = self.input_handler.modifiers();
-                            if modifiers.shift {
-                                // Shift+Tab = Focus previous pane
-                                self.handle_focus_prev();
-                            } else if modifiers.ctrl {
-                                // Ctrl+Tab = Focus next pane
-                                self.handle_focus_next();
-                            }
+                    // Look up action from config keybindings
+                    if let Some(action) = self.lookup_keybinding_action(&event.logical_key, self.modifiers) {
+                        if self.execute_action(action) {
                             return;
                         }
-                        // Pane resizing with Ctrl+Shift+Arrow keys
-                        Key::Named(NamedKey::ArrowLeft) => {
-                            let modifiers = self.input_handler.modifiers();
-                            if modifiers.ctrl && modifiers.shift {
-                                self.handle_resize_pane(SplitDirection::Horizontal, -0.05);
-                                return;
-                            }
-                        }
-                        Key::Named(NamedKey::ArrowRight) => {
-                            let modifiers = self.input_handler.modifiers();
-                            if modifiers.ctrl && modifiers.shift {
-                                self.handle_resize_pane(SplitDirection::Horizontal, 0.05);
-                                return;
-                            }
-                        }
-                        Key::Named(NamedKey::ArrowUp) => {
-                            let modifiers = self.input_handler.modifiers();
-                            if modifiers.ctrl && modifiers.shift {
-                                self.handle_resize_pane(SplitDirection::Vertical, -0.05);
-                                return;
-                            }
-                        }
-                        Key::Named(NamedKey::ArrowDown) => {
-                            let modifiers = self.input_handler.modifiers();
-                            if modifiers.ctrl && modifiers.shift {
-                                self.handle_resize_pane(SplitDirection::Vertical, 0.05);
-                                return;
-                            }
-                        }
-                        _ => {}
                     }
 
                     // Check for paste shortcuts (Ctrl+V or Ctrl+Shift+V)
