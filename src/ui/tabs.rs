@@ -1,22 +1,76 @@
-//! Tab management for multiple terminal sessions
+//! Tab management for multiple terminal sessions.
 //!
-//! Provides tab functionality where each tab contains its own layout tree
-//! with potentially multiple split panes.
+//! This module provides tab functionality where each tab contains its own
+//! layout tree with potentially multiple split panes. Tabs are displayed
+//! in a tab bar at the top of the terminal window.
+//!
+//! # Key Types
+//!
+//! - [`Tab`]: A single tab containing a layout tree of panes
+//! - [`TabManager`]: Manager for all tabs with navigation and creation methods
+//!
+//! # Tab Features
+//!
+//! - Create new tabs with `Ctrl+T`
+//! - Close tabs with `Ctrl+W` (cannot close last tab)
+//! - Switch between tabs with `Ctrl+Tab` or `Ctrl+1` through `Ctrl+9`
+//! - Navigate to previous/next tab with `Ctrl+Shift+Tab` / `Ctrl+Tab`
+//!
+//! # Example
+//!
+//! ```ignore
+//! // Create a tab manager with an initial tab
+//! let pane = create_test_pane();
+//! let tab = Tab::new(pane);
+//! let mut manager = TabManager::new(tab);
+//!
+//! // Add more tabs
+//! let new_pane = create_test_pane();
+//! manager.new_tab(new_pane);
+//!
+//! // Navigate tabs
+//! manager.next_tab();
+//! manager.switch_to_tab(0);
+//! ```
 
 use crate::terminal::pty::PtySession;
 use uuid::Uuid;
 
 use super::layout::{LayoutTree, Pane, Rect};
 
-/// A single tab containing a layout tree of panes
+/// A single tab containing a layout tree of panes.
+///
+/// Each tab has its own independent layout tree, allowing different
+/// pane configurations per tab. The tab's title is derived from the
+/// current working directory of the focused pane.
+///
+/// # Fields
+///
+/// - `id`: Unique identifier for this tab
+/// - `title`: Display title shown in the tab bar
+/// - `layout`: Layout tree containing all panes in this tab
+/// - `active`: Whether this tab is currently active
 pub struct Tab {
-    /// Unique identifier for this tab
+    /// Unique identifier for this tab.
+    ///
+    /// This field is kept for potential future features like tab persistence
+    /// or session management where unique tab IDs would be needed.
+    #[allow(dead_code)]
     pub id: Uuid,
-    /// Tab title (derived from active pane or manually set)
+    /// Tab title displayed in the tab bar.
+    ///
+    /// The title is automatically derived from the current working directory
+    /// of the focused pane, showing just the directory name.
     pub title: String,
-    /// Layout tree containing all panes in this tab
+    /// Layout tree containing all panes in this tab.
+    ///
+    /// Each tab has its own independent layout, allowing different
+    /// split configurations per tab.
     pub layout: LayoutTree,
-    /// Whether this tab is active
+    /// Whether this tab is currently active.
+    ///
+    /// Only one tab can be active at a time. The active tab's content
+    /// is displayed below the tab bar.
     pub active: bool,
 }
 
@@ -63,24 +117,46 @@ impl Tab {
         }
     }
 
-    /// Get the focused pane ID
+    /// Get the focused pane ID.
+    ///
+    /// This method is kept for potential future use in pane management.
+    #[allow(dead_code)]
     pub fn focused_pane_id(&self) -> Uuid {
         self.layout.focused_pane_id()
     }
 
-    /// Get the number of panes in this tab
+    /// Get the number of panes in this tab.
+    ///
+    /// This method is kept for potential future use in UI display or limits.
+    #[allow(dead_code)]
     pub fn pane_count(&self) -> usize {
         self.layout.pane_count()
     }
 }
 
-/// Manager for all tabs
+/// Manager for all tabs in the terminal application.
+///
+/// The `TabManager` handles creation, deletion, and navigation of tabs.
+/// It maintains at least one tab at all times - the last tab cannot be closed.
+///
+/// # Tab Navigation
+///
+/// - `Ctrl+T`: Create new tab
+/// - `Ctrl+W`: Close current tab
+/// - `Ctrl+Tab`: Switch to next tab
+/// - `Ctrl+Shift+Tab`: Switch to previous tab
+/// - `Ctrl+1` to `Ctrl+9`: Switch to tab by index
+///
+/// # Layout Integration
+///
+/// Each tab has its own [`LayoutTree`], and the manager provides methods
+/// to calculate layouts accounting for the tab bar height at the top.
 pub struct TabManager {
-    /// All tabs
+    /// All open tabs. Always contains at least one tab.
     tabs: Vec<Tab>,
-    /// Index of the currently active tab
+    /// Index of the currently active tab (0-based).
     active_tab_index: usize,
-    /// Tab bar height in pixels
+    /// Height of the tab bar in pixels.
     tab_bar_height: u32,
 }
 
@@ -127,12 +203,19 @@ impl TabManager {
         self.tab_bar_height
     }
 
-    /// Set tab bar height
+    /// Set tab bar height.
+    ///
+    /// This method is kept for potential future use in dynamic tab bar sizing.
+    #[allow(dead_code)]
     pub fn set_tab_bar_height(&mut self, height: u32) {
         self.tab_bar_height = height;
     }
 
-    /// Create a new tab and switch to it
+    /// Create a new tab and switch to it.
+    ///
+    /// This is a convenience method that creates a [`Tab`] from the given pane
+    /// and adds it. See [`TabManager::new_tab_from_tab`] for more control.
+    #[allow(dead_code)]
     pub fn new_tab(&mut self, initial_pane: Pane) -> usize {
         let tab = Tab::new(initial_pane);
         self.new_tab_from_tab(tab)

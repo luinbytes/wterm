@@ -20,6 +20,7 @@ A free and open-source clone of [Warp](https://warp.dev/) terminal with AI integ
 - ✅ Terminal emulation with VTE parser
 - ✅ PTY I/O (spawn shell, read/write)
 - ✅ Split panes with layout management
+- ✅ Tab management with tab bar UI
 - ✅ AI command palette (Ctrl+Space)
 - ✅ AI context-aware suggestions
 - ✅ Search functionality with scrollback (Ctrl+Shift+F)
@@ -43,6 +44,47 @@ A free and open-source clone of [Warp](https://warp.dev/) terminal with AI integ
 - 🎨 Customizable themes and keybindings
 - 🔍 Advanced search with regex support
 - 📋 Smart copy with formatting options
+- 📑 Multi-tab support with split panes per tab
+
+## Keybindings
+
+### Tab Management
+| Keybinding | Action |
+|------------|--------|
+| `Ctrl+T` | Create new tab |
+| `Ctrl+W` | Close current tab |
+| `Ctrl+Tab` | Switch to next tab |
+| `Ctrl+Shift+Tab` | Switch to previous tab |
+| `Ctrl+1` - `Ctrl+9` | Switch to tab 1-9 |
+
+### Pane Management
+| Keybinding | Action |
+|------------|--------|
+| `Ctrl+D` | Split pane horizontally |
+| `Ctrl+Shift+D` | Split pane vertically |
+| `Ctrl+Arrow Keys` | Navigate between panes |
+
+### AI Features
+| Keybinding | Action |
+|------------|--------|
+| `Ctrl+Space` | Open AI command palette |
+| `Escape` | Close AI palette / Cancel |
+
+### Search
+| Keybinding | Action |
+|------------|--------|
+| `Ctrl+Shift+F` | Toggle search mode |
+| `Enter` | Find next match |
+| `Shift+Enter` | Find previous match |
+
+### Other
+| Keybinding | Action |
+|------------|--------|
+| `Ctrl+C` | Copy selected text |
+| `Ctrl+V` | Paste from clipboard |
+| `Ctrl+Plus` | Increase font size |
+| `Ctrl+Minus` | Decrease font size |
+| `Ctrl+0` | Reset font size |
 
 ## Tech Stack
 
@@ -213,6 +255,7 @@ cargo build --release --target x86_64-pc-windows-gnu
 - [x] PTY spawning and I/O
 - [x] VTE escape sequence parsing
 - [x] Split panes and layout management
+- [x] Tab management with tab bar UI
 - [x] Basic AI integration
 - [ ] Shell integration (directory tracking)
 - [x] Scrollback buffer (search implemented)

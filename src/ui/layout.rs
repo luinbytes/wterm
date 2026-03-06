@@ -229,6 +229,7 @@ impl LayoutTree {
     }
 
     /// Count total panes
+    #[allow(dead_code)]
     pub fn pane_count(&self) -> usize {
         self.root.pane_count()
     }
@@ -466,7 +467,10 @@ impl LayoutTree {
 
     /// Close the focused pane
     ///
-    /// Returns Ok(()) if pane was closed, Err if this is the last pane or pane not found
+    /// Returns Ok(()) if pane was closed, Err if this is the last pane or pane not found.
+    ///
+    /// This method is kept for potential future use with pane management keybindings.
+    #[allow(dead_code)]
     pub fn close_focused(&mut self) -> Result<(), String> {
         let pane_count = self.pane_count();
         if pane_count <= 1 {
@@ -535,7 +539,10 @@ impl LayoutTree {
     }
 }
 
-/// Recursively close a pane in a node (standalone function to avoid borrow issues)
+/// Recursively close a pane in a node (standalone function to avoid borrow issues).
+///
+/// This function is used internally by [`LayoutTree::close_focused`].
+#[allow(dead_code)]
 fn close_pane_in_node(node: LayoutNode, pane_id: Uuid) -> Result<LayoutNode, String> {
     match node {
         LayoutNode::Pane(pane) if pane.id == pane_id => {
@@ -778,15 +785,25 @@ fn resize_pane_in_node(
 /// Cached PTY for placeholder panes (avoids spawning multiple times on Windows)
 static PLACEHOLDER_PTY: OnceLock<Arc<Mutex<PtySession>>> = OnceLock::new();
 
-/// Create a placeholder pane (used internally for tree manipulation)
+/// Create a placeholder pane (used internally for tree manipulation).
 ///
 /// Uses a cached PTY to avoid stack overflow on Windows from spawning
 /// multiple PTY sessions during tree restructuring.
+///
+/// # Panics
+///
+/// Panics if PTY spawning fails. This is acceptable because:
+/// 1. The placeholder pane is only used during internal tree operations
+/// 2. A PTY failure at this point indicates a fundamental system problem
+/// 3. The PTY is cached and only spawned once via `OnceLock`
 fn create_placeholder_pane() -> Pane {
     use std::sync::Arc;
     let pty = PLACEHOLDER_PTY.get_or_init(|| {
         use crate::terminal::pty::PtyConfig;
-        let pty_session = PtySession::spawn(PtyConfig::default()).unwrap();
+        // SAFETY: This only runs once due to OnceLock. Panicking here is
+        // appropriate as PTY spawning failure indicates a system-level issue.
+        let pty_session = PtySession::spawn(PtyConfig::default())
+            .expect("Failed to spawn placeholder PTY - system may not support PTY operations");
         Arc::new(Mutex::new(pty_session))
     });
 

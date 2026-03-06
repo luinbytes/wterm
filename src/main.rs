@@ -1,11 +1,41 @@
 //! Warp FOSS - A free terminal with AI integration
 //!
-//! Main entry point with event loop that ties together:
-//! - winit window management
-//! - wgpu rendering
-//! - PTY session for shell I/O
-//! - Terminal parsing and grid state
-//! - Layout management for split panes
+//! This is the main entry point for the Warp FOSS terminal emulator. The application
+//! provides a modern, GPU-accelerated terminal experience with AI integration.
+//!
+//! # Architecture
+//!
+//! The application is built around several key components:
+//!
+//! - **Window Management**: Uses `winit` for cross-platform window handling
+//! - **GPU Rendering**: Uses `wgpu` for hardware-accelerated text rendering
+//! - **Terminal Emulation**: Custom VTE parser and grid buffer for terminal output
+//! - **PTY I/O**: Spawns and communicates with shell processes
+//! - **Layout Management**: Tree-based split pane system with tabs
+//! - **AI Integration**: Command palette with multiple AI provider support
+//!
+//! # Key Types
+//!
+//! - [`TerminalApp`]: Main application state and event handling
+//! - [`RendererHolder`]: GPU renderer abstraction
+//!
+//! # Features
+//!
+//! - Multiple tabs with individual layout trees
+//! - Split panes (horizontal and vertical)
+//! - AI command palette (Ctrl+Space)
+//! - Search functionality (Ctrl+Shift+F)
+//! - Copy/paste with clipboard support
+//! - Status bar with git integration
+//!
+//! # Example
+//!
+//! ```ignore
+//! // Run the terminal application
+//! let event_loop = EventLoop::new().unwrap();
+//! let mut app = TerminalApp::new();
+//! event_loop.run_app(&mut app).unwrap();
+//! ```
 
 mod ai;
 mod config;
@@ -36,50 +66,75 @@ use winit::{
     window::{Window, WindowId},
 };
 
-/// Main application state
+/// Main application state for the Warp FOSS terminal.
+///
+/// This struct holds all the state required to run the terminal application,
+/// including window management, GPU rendering, PTY sessions, and UI components.
+///
+/// # Fields
+///
+/// - `config`: Application configuration loaded from disk or defaults
+/// - `window`: The main application window (winit)
+/// - `renderer`: GPU renderer for text output
+/// - `tab_manager`: Manages all open tabs, each with their own layout
+/// - `input_handler`: Processes keyboard input and maps to actions
+/// - `selection_state`: Tracks mouse selection state
+/// - `clipboard`: System clipboard access
+/// - `search_state`: Search mode state and results
+/// - `ai_palette`: AI command palette overlay
+/// - `status_bar`: Bottom status bar with git info
 struct TerminalApp {
-    /// Application configuration
+    /// Application configuration loaded from config file or defaults
     config: Config,
-    /// The winit window
+    /// The winit window wrapped in Arc for sharing with wgpu
     window: Option<Arc<Window>>,
-    /// GPU renderer - stored as raw parts to avoid lifetime issues
+    /// GPU renderer stored as raw parts to avoid lifetime issues with wgpu
     renderer: Option<RendererHolder>,
     /// Tab manager for all tabs (each tab has its own layout tree)
     tab_manager: Option<TabManager>,
-    /// Input handler for keyboard events
+    /// Input handler for keyboard events and keybinding resolution
     input_handler: InputHandler,
-    /// Selection state for mouse selection
+    /// Selection state for mouse-based text selection
     selection_state: SelectionState,
-    /// Clipboard manager
+    /// Clipboard manager for copy/paste operations
     clipboard: Clipboard,
-    /// Whether the app is running
+    /// Whether the application is currently running
     running: bool,
-    /// Last frame time for FPS limiting
+    /// Last frame timestamp for FPS limiting
     last_frame: Instant,
-    /// Target frame duration (60 FPS)
+    /// Target frame duration (16.67ms for 60 FPS)
     frame_duration: Duration,
-    /// Cell dimensions in pixels
+    /// Character cell width in pixels (based on font metrics)
     cell_width: u32,
+    /// Character cell height in pixels (based on font metrics)
     cell_height: u32,
-    /// Current cursor position in pixels
+    /// Current mouse cursor position in window coordinates
     cursor_position: Option<PhysicalPosition<f64>>,
-    /// Current modifier state
+    /// Current keyboard modifier state (Shift, Ctrl, Alt, etc.)
     modifiers: ModifiersState,
-    /// Search state
+    /// Search state including pattern and match positions
     search_state: SearchState,
-    /// Search mode input buffer
+    /// Search mode input buffer for incremental search
     search_input: String,
-    /// AI command palette
+    /// AI command palette overlay state
     ai_palette: AICommandPalette,
-    /// Status bar
+    /// Status bar showing current directory, git branch, etc.
     status_bar: StatusBar,
-    /// Current font size (can be adjusted at runtime)
+    /// Current font size in points (can be adjusted with Ctrl+/Ctrl-)
     font_size: f32,
-    /// Default font size from config (for reset)
+    /// Default font size from config (for reset with Ctrl+0)
     default_font_size: f32,
 }
 
-/// Type-erased renderer holder to work around lifetime issues
+/// Type-erased renderer holder to work around lifetime issues.
+///
+/// This struct encapsulates all wgpu resources needed for rendering:
+/// - Device and queue for GPU operations
+/// - Surface for presenting to the window
+/// - Text renderer with glyph atlas
+///
+/// The struct is designed to avoid lifetime complications with wgpu's
+/// surface type by using a `'static` lifetime on the surface reference.
 struct RendererHolder {
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -258,6 +313,10 @@ impl RendererHolder {
         Ok(())
     }
 
+    /// Render a single layout tree (used when tabs are not displayed).
+    ///
+    /// This method is kept for potential future use when rendering without tabs.
+    #[allow(dead_code)]
     #[allow(clippy::too_many_arguments)]
     fn render_layout(
         &mut self,
@@ -2021,6 +2080,10 @@ impl TerminalApp {
     }
 
     /// Handle pane close (Ctrl+W)
+    /// Close the currently focused pane in the active tab.
+    ///
+    /// This method is kept for potential future use with pane management keybindings.
+    #[allow(dead_code)]
     fn handle_close_pane(&mut self) {
         if let Some(ref mut tab_manager) = self.tab_manager {
             if let Some(tab) = tab_manager.active_tab_mut() {
