@@ -55,3 +55,32 @@ To verify the fix:
 1. Extract and run `warp-foss.exe` on Windows
 2. The application should start without stack overflow
 3. Terminal rendering should work correctly with all 256 ANSI colors
+
+---
+
+## Recommended Build Method: cargo-xwin (MSVC)
+
+As of 2026-03-06, the recommended way to build for Windows is using `cargo-xwin` with the MSVC target:
+
+```bash
+# Install cargo-xwin
+cargo install cargo-xwin
+
+# Build with MSVC target
+cargo xwin build --target x86_64-pc-windows-msvc --release
+```
+
+The MSVC toolchain handles stack sizes differently than GNU and is the officially supported toolchain for winit.
+
+**Binary location:** `target/x86_64-pc-windows-msvc/release/warp-foss.exe`
+
+### Why MSVC over GNU?
+- winit officially supports MSVC toolchain
+- MSVC has better stack handling on Windows
+- No need for linker workarounds
+- More reliable cross-platform behavior
+
+### Prerequisites for cargo-xwin
+- Rust installed via rustup
+- clang and lld installed (for the MSVC cross-compilation)
+- cargo-xwin will automatically download MSVC CRT and Windows SDK

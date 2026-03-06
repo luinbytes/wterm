@@ -184,12 +184,30 @@ cargo run --release
 
 ### Cross-Compilation for Windows
 
+**Recommended: MSVC toolchain (cargo-xwin)**
+
+The MSVC toolchain is recommended for Windows builds as it handles stack sizes better than GNU:
+
+```bash
+# Install cargo-xwin
+cargo install cargo-xwin
+
+# Build with MSVC target
+cargo xwin build --target x86_64-pc-windows-msvc --release
+```
+
+The binary will be at `target/x86_64-pc-windows-msvc/release/warp-foss.exe`.
+
+**Alternative: GNU toolchain**
+
+The GNU toolchain may work but has known stack overflow issues on Windows:
+
 ```bash
 # Install target
 rustup target add x86_64-pc-windows-gnu
 
 # Build
-cargo build --release --target x86_64-pc-windows-gnu
+cargo xwin build --target x86_64-pc-windows-msvc --release
 ```
 
 See [STACK_OVERFLOW_FIX.md](STACK_OVERFLOW_FIX.md) for Windows-specific notes.
@@ -285,12 +303,12 @@ See `STACK_OVERFLOW_FIX.md` for full details.
 
 **Build Status:**
 - ✅ Linux builds work
-- ✅ Windows cross-compile (`x86_64-pc-windows-gnu`) succeeds
-- ❓ Needs testing on actual Windows to confirm fix
+- ✅ Windows MSVC cross-compile (`cargo xwin`) succeeds
+- ❓ MSVC binary needs testing on actual Windows to confirm fix
 
 **To build for Windows:**
 ```bash
-cargo build --release --target x86_64-pc-windows-gnu
+cargo xwin build --target x86_64-pc-windows-msvc --release
 ```
 
 ## Roadmap
