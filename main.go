@@ -79,18 +79,21 @@ type CommandBlock struct {
 
 // Model is the main application state
 type Model struct {
-  viewport  viewport.Model
-  textInput textinput.Model
-  spinner   spinner.Model
-  blocks   []CommandBlock
-  ready    bool
-  width    int
-  height   int
-  aiMode   bool
-  aiLoading bool
-  aiPrompt  string
-  nlpParser *NLPParser
-  cmdRunning bool
+  viewport    viewport.Model
+  textInput   textinput.Model
+  spinner     spinner.Model
+  blocks      []CommandBlock
+  ready       bool
+  width       int
+  height      int
+  aiMode      bool
+  aiLoading   bool
+  aiPrompt    string
+  nlpParser   *NLPParser
+  cmdRunning  bool
+  history     []string
+  maxHistory  int
+  showHistory bool
 }
 
 // CommandExecMsg is sent when a command finishes executing
@@ -121,6 +124,9 @@ func InitialModel() Model {
     aiMode:   false,
     aiLoading: false,
     nlpParser: NewNLPParser(),
+    history:   make([]string, 0),
+    maxHistory: 1000,
+    showHistory: false,
   }
 }
 
@@ -178,6 +184,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         return m, nil
       }
 
+      // Handle /history command
+      if input == "/history" {
+        m.showHistory = !m.showHistory
+        m.textInput.SetValue("")
+        if m.showHistory {
+          m.updateHistoryView()
+        } else {
+          m.updateViewport()
+        }
+        return m, nil
+      }
+
+      // Add to history (unless it's a duplicate of the last entry)
+      if len(m.history) == 0 || m.history[len(m.history)-1] != input {
+        m.history = append(m.history, input)
+        // Trim history if over max
+        if len(m.history) > m.maxHistory {
+          m.history = m.history[len(m.history)-m.maxHistory:]
+        }
+      }
+      m.showHistory = false
+
       if m.aiMode {
         // AI mode - stub the call
         m.aiPrompt = input
@@ -200,6 +228,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         }
       }
       return m, tea.Batch(cmds...)
+
+    case tea.KeyPgUp:
+      m.viewport.HalfViewUp()
+      return m, nil
+
+    case tea.KeyPgDown:
+      m.viewport.HalfViewDown()
+      return m, nil
+
+    case tea.KeyUp:
+      // Scroll up in viewport
+      m.viewport.LineUp(1)
+      return m, nil
+
+    case tea.KeyDown:
+      // Scroll down in viewport
+      m.viewport.LineDown(1)
+      return m, nil
     }
 
   case tea.WindowSizeMsg:
@@ -303,6 +349,36 @@ func (m *Model) updateViewport() {
   m.viewport.GotoBottom()
 }
 
+// updateHistoryView shows the command history
+func (m *Model) updateHistoryView() {
+  if !m.ready {
+    return
+  }
+
+  var content strings.Builder
+  content.WriteString(titleStyle.Render("📜 Command History") + "\n\n")
+
+  if len(m.history) == 0 {
+    content.WriteString(outputStyle.Render("No commands in history yet."))
+  } else {
+    // Show last 50 commands (or all if less)
+    start := 0
+    if len(m.history) > 50 {
+      start = len(m.history) - 50
+    }
+
+    for i := start; i < len(m.history); i++ {
+      num := fmt.Sprintf("%4d", i+1)
+      content.WriteString(fmt.Sprintf("%s  %s\n", cmdPromptStyle.Render(num), cmdInputStyle.Render(m.history[i])))
+    }
+
+    content.WriteString("\n" + helpStyle.Render(fmt.Sprintf("(%d/%d commands shown)", len(m.history)-start, len(m.history))))
+  }
+
+  m.viewport.SetContent(content.String())
+  m.viewport.GotoBottom()
+}
+
 // View renders the UI
 func (m Model) View() string {
   if !m.ready {
@@ -333,7 +409,7 @@ func (m Model) View() string {
   b.WriteString(inputBar + "\n")
 
   // Help bar
-  help := helpStyle.Render("Ctrl+Space: AI mode • Esc: Exit AI mode • Ctrl+C: Quit")
+  help := helpStyle.Render("Tab: AI • ↑↓/PgUp/PgDn: Scroll • /history: History • Ctrl+C: Quit")
   b.WriteString(help)
 
   return b.String()
