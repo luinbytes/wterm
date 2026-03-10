@@ -23,7 +23,7 @@ jobs:
           go-version: ${{ matrix.go }}
 
       - name: Download dependencies
-        run: go mod download
+        run: go mod tidy && go mod download
 
       - name: Build
         run: go build -v ./...
