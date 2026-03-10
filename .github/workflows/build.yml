@@ -8,159 +8,62 @@ on:
   pull_request:
     branches: [main]
 
-env:
-  CARGO_TERM_COLOR: always
-  RUST_BACKTRACE: 1
-
 jobs:
-  build-linux:
-    runs-on: ubuntu-latest
+  build:
+    name: Build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            artifact_name: warp-clone
+            archive_name: warp-clone-linux-amd64.tar.gz
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            artifact_name: warp-clone
+            archive_name: warp-clone-darwin-amd64.tar.gz
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            artifact_name: warp-clone
+            archive_name: warp-clone-darwin-arm64.tar.gz
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            artifact_name: warp-clone.exe
+            archive_name: warp-clone-windows-amd64.zip
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          targets: x86_64-unknown-linux-gnu
-      
-      - name: Cache cargo registry
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: linux
-      
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
-      
+          go-version: '1.22'
+
+      - name: Download dependencies
+        run: go mod tidy && go mod download
+
       - name: Build
-        run: cargo build --release --target x86_64-unknown-linux-gnu
-      
-      - name: Run tests
-        run: cargo test --release
-      
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: go build -ldflags="-s -w" -o ${{ matrix.artifact_name }} .
+
+      - name: Create archive (Unix)
+        if: matrix.os != 'windows-latest'
+        run: tar -czvf ${{ matrix.archive_name }} ${{ matrix.artifact_name }}
+
+      - name: Create archive (Windows)
+        if: matrix.os == 'windows-latest'
+        run: 7z a ${{ matrix.archive_name }} ${{ matrix.artifact_name }}
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: warp-foss-linux-x64
-          path: target/x86_64-unknown-linux-gnu/release/warp-foss
+          name: ${{ matrix.archive_name }}
+          path: ${{ matrix.archive_name }}
           retention-days: 7
-
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc
-      
-      - name: Cache cargo registry
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: windows
-      
-      - name: Build
-        run: cargo build --release --target x86_64-pc-windows-msvc
-      
-      - name: Run tests
-        run: cargo test --release
-      
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: warp-foss-windows-x64
-          path: target/x86_64-pc-windows-msvc/release/warp-foss.exe
-          retention-days: 7
-
-  build-macos:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-darwin, x86_64-apple-darwin
-      
-      - name: Cache cargo registry
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: macos
-      
-      - name: Build (Apple Silicon)
-        run: cargo build --release --target aarch64-apple-darwin
-      
-      - name: Run tests
-        run: cargo test --release
-      
-      - name: Upload artifact (ARM)
-        uses: actions/upload-artifact@v4
-        with:
-          name: warp-foss-macos-arm64
-          path: target/aarch64-apple-darwin/release/warp-foss
-          retention-days: 7
-
-  clippy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - uses: Swatinem/rust-cache@v2
-      - name: Clippy
-        run: cargo clippy -- -D warnings
-
-  fmt:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-      - name: Check formatting
-        run: cargo fmt --check
-
-  release:
-    needs: [build-linux, build-windows, build-macos]
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Download Linux artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: warp-foss-linux-x64
-          path: artifacts/linux
-      
-      - name: Download Windows artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: warp-foss-windows-x64
-          path: artifacts/windows
-      
-      - name: Download macOS artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: warp-foss-macos-arm64
-          path: artifacts/macos
-      
-      - name: Create release archives
-        run: |
-          cd artifacts/linux && tar -czvf ../warp-foss-linux-x64.tar.gz warp-foss
-          cd ../windows && zip ../warp-foss-windows-x64.zip warp-foss.exe
-          cd ../macos && tar -czvf ../warp-foss-macos-arm64.tar.gz warp-foss
-      
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            artifacts/warp-foss-linux-x64.tar.gz
-            artifacts/warp-foss-windows-x64.zip
-            artifacts/warp-foss-macos-arm64.tar.gz
-          generate_release_notes: true

@@ -4,10 +4,10 @@ import (
   "fmt"
   "strings"
 
-  "github.com/charmbracelet/bubbletea"
-  "github.com/charmbracelet/bubbletea/spinner"
-  "github.com/charmbracelet/bubbletea/textinput"
+  "github.com/charmbracelet/bubbles/spinner"
+  "github.com/charmbracelet/bubbles/textinput"
   "github.com/charmbracelet/bubbles/viewport"
+  "github.com/charmbracelet/bubbletea"
   "github.com/charmbracelet/lipgloss"
 )
 
@@ -131,7 +131,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
   switch msg := msg.(type) {
   case tea.KeyMsg:
     switch msg.Type {
-    case tea.KeyCtrlC, tea.KeyEsc:
+    case tea.KeyCtrlC:
       if m.aiMode {
         m.aiMode = false
         m.textInput.Prompt = "❯ "
@@ -139,6 +139,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         return m, nil
       }
       return m, tea.Quit
+
+    case tea.KeyEsc:
+      // Esc only exits AI mode, never quits
+      if m.aiMode {
+        m.aiMode = false
+        m.textInput.Prompt = "❯ "
+        m.textInput.Placeholder = "Type a command..."
+      }
+      return m, nil
 
     case tea.KeyCtrlSpace:
       // Toggle AI mode
@@ -163,10 +172,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         m.aiPrompt = input
         m.aiLoading = true
         m.textInput.SetValue("")
-        cmds = append(cmds, m.stubAICall(input))
+        cmds = append(cmds, stubAICall(input))
       } else {
         // Regular command - stub execution
-        output := m.stubCommand(input)
+        output := stubCommand(input)
         m.blocks = append(m.blocks, CommandBlock{
           Command: input,
           Output:  output,
@@ -221,7 +230,7 @@ type AIResponseMsg struct {
 }
 
 // stubAICall simulates an AI API call
-func (m *Model) stubAICall(prompt string) tea.Cmd {
+func stubAICall(prompt string) tea.Cmd {
   return func() tea.Msg {
     // TODO: Wire up actual AI API here
     // For now, return a stubbed response
@@ -231,7 +240,7 @@ func (m *Model) stubAICall(prompt string) tea.Cmd {
 }
 
 // stubCommand simulates command execution
-func (m *Model) stubCommand(cmd string) string {
+func stubCommand(cmd string) string {
   // TODO: Wire up actual shell execution
   // For now, return stubbed output
   return fmt.Sprintf("[Stub output for: %s]\n\nWire up PTY/shell execution here.", cmd)
