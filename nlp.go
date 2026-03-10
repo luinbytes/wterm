@@ -145,7 +145,7 @@ func (p *NLPParser) cmdPwd(re *regexp.Regexp, input string) string {
 
 func (p *NLPParser) cmdList(re *regexp.Regexp, input string) string {
 	if runtime.GOOS == "windows" {
-		return "dir"
+		return "dir /b"
 	}
 	return "ls -la"
 }
@@ -160,11 +160,11 @@ func (p *NLPParser) cmdListSorted(re *regexp.Regexp, input string) string {
 	if runtime.GOOS == "windows" {
 		switch sortBy {
 		case "size":
-			return "dir /O-S"
+			return "dir /b /o-s"
 		case "name":
-			return "dir /O-N"
+			return "dir /b /on"
 		case "date":
-			return "dir /O-D"
+			return "dir /b /o-d"
 		}
 	}
 	// Unix
