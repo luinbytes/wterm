@@ -1,7 +1,34 @@
-target/
-*.log
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+warp-clone
 
-# Build outputs and archives
-archive/
-*.rlib
-release-tar/
+# Test binary
+*.test
+
+# Output of go coverage
+*.out
+
+# Go workspace
+go.work
+go.work.sum
+
+# Dependency directories
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config (user-specific)
+.config/
+*.env
