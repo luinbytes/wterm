@@ -13,60 +13,60 @@ import (
 
 // Warp-inspired dark theme colors
 var (
-  themeBg         = lipgloss.Color("#1a1b26")
-  themeFg         = lipgloss.Color("#c0caf5")
-  themeMuted      = lipgloss.Color("#565f89")
-  themeAccent     = lipgloss.Color("#7aa2f7")
-  themeGreen      = lipgloss.Color("#9ece6a")
-  themeYellow     = lipgloss.Color("#e0af68")
-  themeRed        = lipgloss.Color("#f7768e")
-  themePurple     = lipgloss.Color("#bb9af7")
-  themeBorder     = lipgloss.Color("#3b4261")
-  themeCmdBlock   = lipgloss.Color("#24283b")
-  themeInputBg    = lipgloss.Color("#16161e")
+  themeBg       = lipgloss.Color("#1a1b26")
+  themeFg       = lipgloss.Color("#c0caf5")
+  themeMuted    = lipgloss.Color("#565f89")
+  themeAccent   = lipgloss.Color("#7aa2f7")
+  themeGreen    = lipgloss.Color("#9ece6a")
+  themeYellow   = lipgloss.Color("#e0af68")
+  themeRed      = lipgloss.Color("#f7768e")
+  themePurple   = lipgloss.Color("#bb9af7")
+  themeBorder   = lipgloss.Color("#3b4261")
+  themeCmdBlock = lipgloss.Color("#24283b")
+  themeInputBg  = lipgloss.Color("#16161e")
 )
 
 // Styles
 var (
   titleStyle = lipgloss.NewStyle().
-      Foreground(themeAccent).
-      Bold(true).
-      Padding(0, 1)
+    Foreground(themeAccent).
+    Bold(true).
+    Padding(0, 1)
 
   cmdBlockStyle = lipgloss.NewStyle().
-      Border(lipgloss.RoundedBorder()).
-      BorderForeground(themeBorder).
-      Background(themeCmdBlock).
-      Padding(0, 1).
-      Margin(0, 1, 1, 1)
+    Border(lipgloss.RoundedBorder()).
+    BorderForeground(themeBorder).
+    Background(themeCmdBlock).
+    Padding(0, 1).
+    Margin(0, 1, 1, 1)
 
   cmdPromptStyle = lipgloss.NewStyle().
-      Foreground(themeGreen).
-      Bold(true)
+    Foreground(themeGreen).
+    Bold(true)
 
   cmdInputStyle = lipgloss.NewStyle().
-      Foreground(themeFg)
+    Foreground(themeFg)
 
   outputStyle = lipgloss.NewStyle().
-      Foreground(themeMuted).
-      Padding(0, 1)
+    Foreground(themeMuted).
+    Padding(0, 1)
 
   inputContainerStyle = lipgloss.NewStyle().
-      Border(lipgloss.RoundedBorder()).
-      BorderForeground(themeAccent).
-      Background(themeInputBg).
-      Padding(0, 1)
+    Border(lipgloss.RoundedBorder()).
+    BorderForeground(themeAccent).
+    Background(themeInputBg).
+    Padding(0, 1)
 
   helpStyle = lipgloss.NewStyle().
-      Foreground(themeMuted).
-      Padding(0, 1)
+    Foreground(themeMuted).
+    Padding(0, 1)
 
   aiIndicatorStyle = lipgloss.NewStyle().
-      Foreground(themePurple).
-      Bold(true)
+    Foreground(themePurple).
+    Bold(true)
 
   spinnerStyle = lipgloss.NewStyle().
-      Foreground(themeYellow)
+    Foreground(themeYellow)
 )
 
 // CommandBlock represents a command + its output
@@ -78,16 +78,16 @@ type CommandBlock struct {
 
 // Model is the main application state
 type Model struct {
-  viewport    viewport.Model
-  textInput   textinput.Model
-  spinner     spinner.Model
-  blocks      []CommandBlock
-  ready       bool
-  width       int
-  height      int
-  aiMode      bool
-  aiLoading   bool
-  aiPrompt    string
+  viewport  viewport.Model
+  textInput textinput.Model
+  spinner   spinner.Model
+  blocks   []CommandBlock
+  ready    bool
+  width    int
+  height   int
+  aiMode   bool
+  aiLoading bool
+  aiPrompt  string
 }
 
 // InitialModel creates the initial application state
@@ -107,8 +107,8 @@ func InitialModel() Model {
   return Model{
     textInput: ti,
     spinner:   s,
-    blocks:    make([]CommandBlock, 0),
-    aiMode:    false,
+    blocks:   make([]CommandBlock, 0),
+    aiMode:   false,
     aiLoading: false,
   }
 }
@@ -122,7 +122,7 @@ func (m Model) Init() tea.Cmd {
 }
 
 // Update handles events and updates the model
-func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
   var (
     cmd  tea.Cmd
     cmds []tea.Cmd
@@ -149,8 +149,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
       }
       return m, nil
 
-    case tea.KeyCtrlSpace:
-      // Toggle AI mode
+    case tea.KeyTab:
+      // Tab toggles AI mode
       m.aiMode = !m.aiMode
       if m.aiMode {
         m.textInput.Prompt = "✨ "
@@ -168,7 +168,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
       }
 
       if m.aiMode {
-        // AI mode - stubbed call
+        // AI mode - stub the call
         m.aiPrompt = input
         m.aiLoading = true
         m.textInput.SetValue("")
@@ -185,36 +185,37 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         m.updateViewport()
       }
       return m, tea.Batch(cmds...)
+    }
 
-    case tea.WindowSizeMsg:
-      m.width = msg.Width
-      m.height = msg.Height
+  case tea.WindowSizeMsg:
+    m.width = msg.Width
+    m.height = msg.Height
 
-      // Reserve space for input bar (3 lines) and help bar (1 line)
-      viewportHeight := m.height - 4
-      if viewportHeight < 1 {
-        viewportHeight = 1
-      }
+    // Reserve space for input bar (3 lines) and help bar (1 line)
+    viewportHeight := m.height - 4
+    if viewportHeight < 1 {
+      viewportHeight = 1
+    }
 
-      m.viewport = viewport.New(m.width, viewportHeight)
-      m.viewport.Style = lipgloss.NewStyle().
-        Background(themeBg).
-        Padding(0, 0)
-      m.ready = true
-      m.updateViewport()
+    m.viewport = viewport.New(m.width, viewportHeight)
+    m.viewport.Style = lipgloss.NewStyle().
+      Background(themeBg).
+      Padding(0, 0)
+    m.ready = true
+    m.updateViewport()
 
-    case AIResponseMsg:
-      m.aiLoading = false
-      m.blocks = append(m.blocks, CommandBlock{
-        Command: m.aiPrompt,
-        Output:  msg.Response,
-        IsAI:    true,
-      })
-      m.updateViewport()
+  case AIResponseMsg:
+    m.aiLoading = false
+    m.blocks = append(m.blocks, CommandBlock{
+      Command: m.aiPrompt,
+      Output:  msg.Response,
+      IsAI:    true,
+    })
+    m.updateViewport()
 
-    case spinner.TickMsg:
-      m.spinner, cmd = m.spinner.Update(msg)
-      cmds = append(cmds, cmd)
+  case spinner.TickMsg:
+    m.spinner, cmd = m.spinner.Update(msg)
+    cmds = append(cmds, cmd)
   }
 
   // Update text input
