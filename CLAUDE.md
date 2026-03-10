@@ -46,8 +46,10 @@ Theme colors are defined as `lipgloss.Color` variables at package level (Tokyo N
 
 ### Stub Functions (Key Integration Points)
 
-- `stubAICall()`: Placeholder for AI API integration (OpenAI, Anthropic, Ollama)
-- `stubCommand()`: Placeholder for PTY/shell execution
+- `stubAICall(prompt string) tea.Cmd`: Returns a command that produces `AIResponseMsg` - wire up AI providers here
+- `stubCommand(cmd string) string`: Returns simulated output - wire up PTY/shell execution here
+
+Both are package-level functions, not methods on Model.
 
 ### Layout Structure
 
@@ -63,15 +65,17 @@ The UI is divided into:
 |-----|--------|
 | `Ctrl+Space` | Toggle AI mode |
 | `Enter` | Execute command / Submit AI prompt |
-| `Esc` | Exit AI mode |
-| `Ctrl+C` | Quit (or exit AI mode when in AI mode) |
+| `Esc` | Exit AI mode (never quits) |
+| `Ctrl+C` | Quit app (or exit AI mode when in AI mode) |
 
 ## Tech Stack
 
 - Go 1.22+
 - `github.com/charmbracelet/bubbletea` - TUI framework
 - `github.com/charmbracelet/lipgloss` - styling
-- `github.com/charmbracelet/bubbles` - textinput, viewport, spinner components
+- `github.com/charmbracelet/bubbles/textinput` - text input component
+- `github.com/charmbracelet/bubbles/viewport` - scrollable viewport
+- `github.com/charmbracelet/bubbles/spinner` - loading spinner
 
 ## Note
 
