@@ -15,7 +15,7 @@ import (
 var (
   themeBg       = lipgloss.Color("#1a1b26")
   themeFg       = lipgloss.Color("#c0caf5")
-  themeMuted    = lipgloss.Color("#565f89")
+  themeMuted    = lipgloss.Color("#a9b1d6") // Brighter for visibility
   themeAccent   = lipgloss.Color("#7aa2f7")
   themeGreen    = lipgloss.Color("#9ece6a")
   themeYellow   = lipgloss.Color("#e0af68")
@@ -36,7 +36,6 @@ var (
   cmdBlockStyle = lipgloss.NewStyle().
     Border(lipgloss.RoundedBorder()).
     BorderForeground(themeBorder).
-    Background(themeCmdBlock).
     Padding(0, 1).
     Margin(0, 1, 1, 1)
 
@@ -54,7 +53,6 @@ var (
   inputContainerStyle = lipgloss.NewStyle().
     Border(lipgloss.RoundedBorder()).
     BorderForeground(themeAccent).
-    Background(themeInputBg).
     Padding(0, 1)
 
   helpStyle = lipgloss.NewStyle().
@@ -198,9 +196,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     }
 
     m.viewport = viewport.New(m.width, viewportHeight)
-    m.viewport.Style = lipgloss.NewStyle().
-      Background(themeBg).
-      Padding(0, 0)
+    m.viewport.Style = lipgloss.NewStyle().Padding(0, 0)
     m.ready = true
     m.updateViewport()
 
