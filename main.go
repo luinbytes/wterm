@@ -11,7 +11,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/creack/pty"
 )
@@ -421,6 +421,9 @@ func (m Model) View() string {
 }
 
 func main() {
+	// Setup console for proper Unicode output (fixes border rendering on Windows)
+	setupConsole()
+
 	p := tea.NewProgram(
 		InitialModel(),
 		tea.WithAltScreen(),
