@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"runtime"
 	"strings"
 
@@ -15,6 +16,14 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/creack/pty"
 )
+
+// ansiRegex matches ANSI escape sequences for stripping
+var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
+
+// stripANSI removes ANSI escape sequences from a string
+func stripANSI(s string) string {
+	return ansiRegex.ReplaceAllString(s, "")
+}
 
 // Warp-inspired dark theme colors
 var (
@@ -327,6 +336,14 @@ func (m *Model) updateViewport() {
 		return
 	}
 
+	// Calculate block width: viewport width minus margins (1 each side) and borders (1 each side)
+	// cmdBlockStyle has Margin(0, 1, 1, 1) = left margin 1, and border takes 2 chars (left + right)
+	// Also account for padding inside the block Padding(0, 1) = 2 chars
+	blockWidth := m.width - 6 // margin(2) + border(2) + padding(2)
+	if blockWidth < 10 {
+		blockWidth = 10
+	}
+
 	var content strings.Builder
 
 	for _, block := range m.blocks {
@@ -340,13 +357,15 @@ func (m *Model) updateViewport() {
 		cmdLine := fmt.Sprintf("%s %s", prompt, cmdInputStyle.Render(block.Command))
 		blockContent.WriteString(cmdLine + "\n")
 
-		// Output
+		// Output - strip ANSI codes before adding to prevent width overflow
 		if block.Output != "" {
-			blockContent.WriteString(outputStyle.Render(block.Output))
+			// Strip ANSI escape sequences to get the visible text width
+			cleanOutput := stripANSI(block.Output)
+			blockContent.WriteString(outputStyle.Render(cleanOutput))
 		}
 
-		// Wrap in styled block
-		styledBlock := cmdBlockStyle.Render(blockContent.String())
+		// Wrap in styled block with fixed width to ensure consistent border rendering
+		styledBlock := cmdBlockStyle.Width(blockWidth).Render(blockContent.String())
 		content.WriteString(styledBlock + "\n")
 	}
 
