@@ -37,7 +37,7 @@ go build -o warp-clone .
 
 | Keybinding | Action |
 |------------|--------|
-| `Ctrl+Space` | Toggle AI mode |
+| `Tab` | Toggle AI mode |
 | `Enter` | Execute command / Submit AI prompt |
 | `Esc` | Exit AI mode |
 | `Ctrl+C` | Quit (or exit AI mode) |
