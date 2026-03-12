@@ -27,7 +27,7 @@ Before creating bug reports, please check the existing issues to avoid duplicate
 - **Provide specific examples to demonstrate the steps**
 - **Describe the behavior you observed and expected**
 - **Include screenshots if helpful**
-- **Include your environment details** (OS, Rust version, etc.)
+- **Include your environment details** (OS, Go version, etc.)
 
 Use the [Bug Report Template](.github/ISSUE_TEMPLATE/bug_report.md).
 
@@ -47,7 +47,7 @@ Use the [Feature Request Template](.github/ISSUE_TEMPLATE/feature_request.md).
 - Fill in the required template
 - Do not include issue numbers in the PR title
 - Include screenshots and animated GIFs in your pull request whenever possible
-- Follow the [Rust](#rust) coding standards
+- Follow the [Go](#go) coding standards
 - Document new code
 - End all files with a newline
 
@@ -76,13 +76,14 @@ See [README.md](README.md#development-setup) for complete setup instructions.
 
 ## Coding Standards
 
-### Rust
+### Go
 
-- Run `cargo fmt` before committing
-- Run `cargo clippy` and fix all warnings
+- Run `gofmt` before committing
+- Run `go vet ./...` and fix all warnings
+- Run `golangci-lint` and fix all issues (optional but recommended)
 - Write tests for new functionality
-- Document public APIs with doc comments (`///`)
-- Follow the [Rust API Guidelines](https://rust-lang.github.io/api-guidelines/)
+- Document exported functions and types with godoc comments
+- Follow [Effective Go](https://go.dev/doc/effective_go)
 
 ### Code Organization
 
