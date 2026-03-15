@@ -24,8 +24,8 @@ A free and open-source terminal emulator inspired by [Warp](https://warp.dev/), 
 
 ```bash
 # Clone the repo
-git clone https://github.com/luinbytes/warp-foss-clone.git
-cd warp-foss-clone
+git clone https://github.com/luinbytes/wterm.git
+cd wterm
 
 # Run
 go run .
@@ -106,7 +106,7 @@ Execution happens asynchronously via `executeCommand()` in `main.go`, returning 
 ## Project Structure
 
 ```
-warp-foss-clone/
+wterm/
 ├── main.go          # Entry point + Bubble Tea app
 ├── config.go        # Configuration management
 ├── history.go       # History persistence

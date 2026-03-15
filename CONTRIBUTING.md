@@ -60,8 +60,8 @@ See [README.md](README.md#development-setup) for complete setup instructions.
 1. **Fork** the repo on GitHub
 2. **Clone** your fork locally
    ```bash
-   git clone https://github.com/your-username/warp-foss-clone.git
-   cd warp-foss-clone
+   git clone https://github.com/your-username/wterm.git
+   cd wterm
    ```
 3. **Create a branch** for your work
    ```bash
