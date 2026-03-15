@@ -53,6 +53,7 @@ func (p *NLPParser) setupPatterns() {
 	p.addPattern(`list files (?:sorted|sort) by (size|name|date)`, p.cmdListSorted, "List files sorted", true, "files")
 	p.addPattern(`list files`, p.cmdList, "List files", true, "files")
 	p.addPattern(`create (folder|directory) (.+)`, p.cmdMkdir, "Create directory", true, "files")
+	p.addPattern(`create (?:new )?file (.+)`, p.cmdTouch, "Create empty file", true, "files")
 	p.addPattern(`delete (?:the )?file (.+)`, p.cmdDeleteFile, "Delete file", false, "files")
 	p.addPattern(`delete (?:the )?(folder|directory) (.+)`, p.cmdDeleteDir, "Delete directory", false, "files")
 	p.addPattern(`copy (.+) (?:to|into) (.+)`, p.cmdCopy, "Copy file", true, "files")
@@ -96,6 +97,7 @@ func (p *NLPParser) setupPatterns() {
 	p.addPattern(`^ls$`, p.cmdList, "List files (alias)", true, "alias")
 	p.addPattern(`^pwd$`, p.cmdPwd, "Show current directory (alias)", true, "alias")
 	p.addPattern(`^mkdir (.+)$`, p.cmdMkdir, "Create directory (alias)", true, "alias")
+	p.addPattern(`^touch (.+)$`, p.cmdTouch, "Create empty file (alias)", true, "alias")
 	p.addPattern(`^rm (.+)$`, p.cmdRm, "Remove file (alias)", false, "alias")
 	p.addPattern(`^gci$`, p.cmdList, "List files (PowerShell alias)", true, "alias")
 	p.addPattern(`^gl$`, p.cmdPwd, "Show current directory (PowerShell alias)", true, "alias")
@@ -187,6 +189,24 @@ func (p *NLPParser) cmdMkdir(re *regexp.Regexp, input string) string {
 	} else if len(matches) > 1 {
 		name := strings.TrimSpace(matches[1])
 		return fmt.Sprintf("mkdir \"%s\"", name)
+	}
+	return ""
+}
+
+func (p *NLPParser) cmdTouch(re *regexp.Regexp, input string) string {
+	matches := re.FindStringSubmatch(input)
+	if len(matches) > 2 {
+		name := strings.TrimSpace(matches[2])
+		if runtime.GOOS == "windows" {
+			return fmt.Sprintf("type nul > \"%s\"", name)
+		}
+		return fmt.Sprintf("touch \"%s\"", name)
+	} else if len(matches) > 1 {
+		name := strings.TrimSpace(matches[1])
+		if runtime.GOOS == "windows" {
+			return fmt.Sprintf("type nul > \"%s\"", name)
+		}
+		return fmt.Sprintf("touch \"%s\"", name)
 	}
 	return ""
 }
