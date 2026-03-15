@@ -97,6 +97,11 @@ func (p *NLPParser) setupPatterns() {
 	p.addPattern(`ping (.+)`, p.cmdPing, "Ping host", true, "network")
 	p.addPattern(`trace route to (.+)`, p.cmdTraceRoute, "Trace route to host", true, "network")
 
+	// Download patterns
+	p.addPattern(`download (.+)`, p.cmdCurl, "Download file via curl", true, "download")
+	p.addPattern(`wget (.+)`, p.cmdWget, "Download file via wget", true, "download")
+	p.addPattern(`download (?:from|url) (.+)`, p.cmdCurl, "Download file via curl", true, "download")
+
 	// File property patterns
 	p.addPattern(`show hidden files`, p.cmdShowHidden, "Show hidden files", true, "properties")
 	p.addPattern(`show (?:file )?(?:attributes|props|properties) (.+)`, p.cmdShowProps, "Show file properties", true, "properties")
@@ -468,6 +473,24 @@ func (p *NLPParser) cmdTraceRoute(re *regexp.Regexp, input string) string {
 			return fmt.Sprintf("tracert %s", host)
 		}
 		return fmt.Sprintf("traceroute %s", host)
+	}
+	return ""
+}
+
+func (p *NLPParser) cmdCurl(re *regexp.Regexp, input string) string {
+	matches := re.FindStringSubmatch(input)
+	if len(matches) > 1 {
+		url := strings.TrimSpace(matches[1])
+		return fmt.Sprintf("curl -O %s", url)
+	}
+	return ""
+}
+
+func (p *NLPParser) cmdWget(re *regexp.Regexp, input string) string {
+	matches := re.FindStringSubmatch(input)
+	if len(matches) > 1 {
+		url := strings.TrimSpace(matches[1])
+		return fmt.Sprintf("wget %s", url)
 	}
 	return ""
 }
