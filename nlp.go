@@ -131,6 +131,19 @@ func (p *NLPParser) setupPatterns() {
 	p.addPattern(`decompress (.+)`, p.cmdGunzip, "Decompress gzip file", true, "archive")
 	p.addPattern(`gzip (.+)`, p.cmdGzip, "Compress file with gzip", true, "archive")
 	p.addPattern(`gunzip (.+)`, p.cmdGunzip, "Decompress gzip file", true, "archive")
+
+	// Docker patterns
+	p.addPattern(`docker ps`, p.cmdDockerPs, "List running Docker containers", true, "docker")
+	p.addPattern(`docker containers`, p.cmdDockerPs, "List Docker containers", true, "docker")
+	p.addPattern(`show containers`, p.cmdDockerPs, "List Docker containers", true, "docker")
+	p.addPattern(`docker images`, p.cmdDockerImages, "List Docker images", true, "docker")
+	p.addPattern(`docker run (.+)`, p.cmdDockerRun, "Run Docker container", true, "docker")
+	p.addPattern(`docker build`, p.cmdDockerBuild, "Build Docker image", true, "docker")
+	p.addPattern(`docker stop (.+)`, p.cmdDockerStop, "Stop Docker container", false, "docker")
+	p.addPattern(`docker logs (.+)`, p.cmdDockerLogs, "Show Docker container logs", true, "docker")
+	p.addPattern(`docker exec (.+) (.+)`, p.cmdDockerExec, "Execute command in Docker container", true, "docker")
+	p.addPattern(`docker-compose up`, p.cmdDockerComposeUp, "Start services with docker-compose", true, "docker")
+	p.addPattern(`docker-compose down`, p.cmdDockerComposeDown, "Stop services with docker-compose", true, "docker")
 }
 
 // Parse attempts to translate natural language to a shell command
@@ -633,4 +646,61 @@ func (p *NLPParser) cmdGunzip(re *regexp.Regexp, input string) string {
 		return fmt.Sprintf("gunzip \"%s\"", file)
 	}
 	return ""
+}
+
+func (p *NLPParser) cmdDockerPs(re *regexp.Regexp, input string) string {
+	return "docker ps"
+}
+
+func (p *NLPParser) cmdDockerImages(re *regexp.Regexp, input string) string {
+	return "docker images"
+}
+
+func (p *NLPParser) cmdDockerRun(re *regexp.Regexp, input string) string {
+	matches := re.FindStringSubmatch(input)
+	if len(matches) > 1 {
+		image := strings.TrimSpace(matches[1])
+		return fmt.Sprintf("docker run %s", image)
+	}
+	return ""
+}
+
+func (p *NLPParser) cmdDockerBuild(re *regexp.Regexp, input string) string {
+	return "docker build -t myimage ."
+}
+
+func (p *NLPParser) cmdDockerStop(re *regexp.Regexp, input string) string {
+	matches := re.FindStringSubmatch(input)
+	if len(matches) > 1 {
+		container := strings.TrimSpace(matches[1])
+		return fmt.Sprintf("docker stop %s", container)
+	}
+	return ""
+}
+
+func (p *NLPParser) cmdDockerLogs(re *regexp.Regexp, input string) string {
+	matches := re.FindStringSubmatch(input)
+	if len(matches) > 1 {
+		container := strings.TrimSpace(matches[1])
+		return fmt.Sprintf("docker logs %s", container)
+	}
+	return ""
+}
+
+func (p *NLPParser) cmdDockerExec(re *regexp.Regexp, input string) string {
+	matches := re.FindStringSubmatch(input)
+	if len(matches) > 2 {
+		container := strings.TrimSpace(matches[1])
+		command := strings.TrimSpace(matches[2])
+		return fmt.Sprintf("docker exec %s %s", container, command)
+	}
+	return ""
+}
+
+func (p *NLPParser) cmdDockerComposeUp(re *regexp.Regexp, input string) string {
+	return "docker-compose up -d"
+}
+
+func (p *NLPParser) cmdDockerComposeDown(re *regexp.Regexp, input string) string {
+	return "docker-compose down"
 }
