@@ -99,6 +99,18 @@ func (p *NLPParser) setupPatterns() {
 	p.addPattern(`^rm (.+)$`, p.cmdRm, "Remove file (alias)", false, "alias")
 	p.addPattern(`^gci$`, p.cmdList, "List files (PowerShell alias)", true, "alias")
 	p.addPattern(`^gl$`, p.cmdPwd, "Show current directory (PowerShell alias)", true, "alias")
+
+	// Archive patterns
+	p.addPattern(`zip (.+) into (.+)`, p.cmdZip, "Create zip archive", true, "archive")
+	p.addPattern(`zip (.+) to (.+)`, p.cmdZip, "Create zip archive", true, "archive")
+	p.addPattern(`unzip (.+)`, p.cmdUnzip, "Extract zip archive", true, "archive")
+	p.addPattern(`extract (.+)`, p.cmdUnzip, "Extract zip archive", true, "archive")
+	p.addPattern(`tar (.+)`, p.cmdTar, "Create tar archive", true, "archive")
+	p.addPattern(`untar (.+)`, p.cmdUntar, "Extract tar archive", true, "archive")
+	p.addPattern(`compress (.+)`, p.cmdGzip, "Compress file with gzip", true, "archive")
+	p.addPattern(`decompress (.+)`, p.cmdGunzip, "Decompress gzip file", true, "archive")
+	p.addPattern(`gzip (.+)`, p.cmdGzip, "Compress file with gzip", true, "archive")
+	p.addPattern(`gunzip (.+)`, p.cmdGunzip, "Decompress gzip file", true, "archive")
 }
 
 // Parse attempts to translate natural language to a shell command
@@ -443,6 +455,67 @@ func (p *NLPParser) cmdRm(re *regexp.Regexp, input string) string {
 			return fmt.Sprintf("del \"%s\"", name)
 		}
 		return fmt.Sprintf("rm \"%s\"", name)
+	}
+	return ""
+}
+
+func (p *NLPParser) cmdZip(re *regexp.Regexp, input string) string {
+	matches := re.FindStringSubmatch(input)
+	if len(matches) > 2 {
+		files := strings.TrimSpace(matches[1])
+		archive := strings.TrimSpace(matches[2])
+		// zip command works on all platforms
+		return fmt.Sprintf("zip -r \"%s\" %s", archive, files)
+	}
+	return ""
+}
+
+func (p *NLPParser) cmdUnzip(re *regexp.Regexp, input string) string {
+	matches := re.FindStringSubmatch(input)
+	if len(matches) > 1 {
+		archive := strings.TrimSpace(matches[1])
+		// unzip command works on all platforms
+		return fmt.Sprintf("unzip \"%s\"", archive)
+	}
+	return ""
+}
+
+func (p *NLPParser) cmdTar(re *regexp.Regexp, input string) string {
+	matches := re.FindStringSubmatch(input)
+	if len(matches) > 1 {
+		files := strings.TrimSpace(matches[1])
+		// tar command works on all platforms
+		return fmt.Sprintf("tar -czf archive.tar.gz %s", files)
+	}
+	return ""
+}
+
+func (p *NLPParser) cmdUntar(re *regexp.Regexp, input string) string {
+	matches := re.FindStringSubmatch(input)
+	if len(matches) > 1 {
+		archive := strings.TrimSpace(matches[1])
+		// tar command works on all platforms
+		return fmt.Sprintf("tar -xzf \"%s\"", archive)
+	}
+	return ""
+}
+
+func (p *NLPParser) cmdGzip(re *regexp.Regexp, input string) string {
+	matches := re.FindStringSubmatch(input)
+	if len(matches) > 1 {
+		file := strings.TrimSpace(matches[1])
+		// gzip command works on all platforms
+		return fmt.Sprintf("gzip \"%s\"", file)
+	}
+	return ""
+}
+
+func (p *NLPParser) cmdGunzip(re *regexp.Regexp, input string) string {
+	matches := re.FindStringSubmatch(input)
+	if len(matches) > 1 {
+		file := strings.TrimSpace(matches[1])
+		// gunzip command works on all platforms
+		return fmt.Sprintf("gunzip \"%s\"", file)
 	}
 	return ""
 }
