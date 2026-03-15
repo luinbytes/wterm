@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="wterm - A Warp-inspired terminal emulator. Fast, modern, AI-ready. Built with Go + Bubble Tea.">
+    <meta name="keywords" content="terminal, emulator, warp, go, bubble tea, tui, developer tools">
+    <meta name="author" content="luinbytes">
+    <meta property="og:title" content="wterm - Warp-Inspired Terminal Emulator">
+    <meta property="og:description" content="Fast, modern, AI-ready. A Warp-inspired terminal built with Go + Bubble Tea.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://luinbytes.github.io/wterm/">
+    <title>wterm | Warp-Inspired Terminal Emulator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #111111;
+            --bg-tertiary: #1a1a1a;
+            --neon: #f472b6;
+            --neon-hover: #ec4899;
+            --accent-purple: #a855f7;
+            --accent-cyan: #00d4ff;
+            --accent-blue: #7aa2f7;
+            --text-primary: #fafafa;
+            --text-secondary: #a1a1aa;
+            --text-muted: #52525b;
+            --border-color: #27272a;
+            --glow-neon: rgba(244, 114, 182, 0.15);
+            --glow-purple: rgba(168, 85, 247, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(to bottom, #0a0a0a, #000000);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(10, 10, 10, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-color);
+            z-index: 100;
+            padding: 16px 0;
+        }
+
+        nav .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--neon);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .logo::before {
+            content: '>';
+            color: var(--accent-cyan);
+            animation: blink 1s step-end infinite;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 32px;
+            list-style: none;
+        }
+
+        .nav-links a {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--neon);
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            padding-top: 80px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 20%;
+            left: -20%;
+            width: 60%;
+            height: 60%;
+            background: radial-gradient(circle, var(--glow-neon) 0%, transparent 70%);
+            filter: blur(60px);
+            pointer-events: none;
+        }
+
+        .hero::after {
+            content: '';
+            position: absolute;
+            bottom: 10%;
+            right: -10%;
+            width: 50%;
+            height: 50%;
+            background: radial-gradient(circle, var(--glow-purple) 0%, transparent 70%);
+            filter: blur(60px);
+            pointer-events: none;
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 100px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+        }
+
+        .hero-badge .status-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--neon);
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        .hero h1 {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: clamp(2.5rem, 8vw, 5rem);
+            font-weight: 700;
+            line-height: 1.1;
+            margin-bottom: 24px;
+        }
+
+        .hero h1 .highlight {
+            color: var(--neon);
+            text-shadow: 0 0 30px var(--glow-neon);
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin-bottom: 40px;
+        }
+
+        .hero p .accent {
+            color: var(--accent-cyan);
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 28px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-primary {
+            background: var(--neon);
+            color: var(--bg-primary);
+        }
+
+        .btn-primary:hover {
+            background: var(--neon-hover);
+            box-shadow: 0 0 20px var(--glow-neon);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            color: var(--accent-cyan);
+            border: 1px solid var(--accent-cyan);
+            background: transparent;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(0, 212, 255, 0.1);
+            box-shadow: 0 0 20px var(--glow-purple);
+        }
+
+        /* Terminal Preview */
+        .terminal-preview {
+            margin-top: 80px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .terminal-window {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .terminal-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .terminal-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .terminal-dot.red { background: #ff5f57; }
+        .terminal-dot.yellow { background: #febc2e; }
+        .terminal-dot.green { background: #28c840; }
+
+        .terminal-title {
+            margin-left: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .terminal-body {
+            padding: 24px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            line-height: 1.8;
+        }
+
+        .terminal-line {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .prompt {
+            color: var(--neon);
+        }
+
+        .command {
+            color: var(--text-primary);
+        }
+
+        .output {
+            color: var(--text-secondary);
+            padding-left: 20px;
+        }
+
+        .output .success {
+            color: #28c840;
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 10px;
+            height: 18px;
+            background: var(--neon);
+            animation: blink 1s step-end infinite;
+            vertical-align: middle;
+            margin-left: 4px;
+        }
+
+        /* Features Section */
+        .features {
+            padding: 120px 0;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 64px;
+        }
+
+        .section-header h2 {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .section-header p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+        }
+
+        .feature-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 32px;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            border-color: var(--neon);
+            box-shadow: 0 0 30px var(--glow-neon);
+            transform: translateY(-4px);
+        }
+
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+        }
+
+        .feature-card h3 {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.25rem;
+            margin-bottom: 12px;
+            color: var(--neon);
+        }
+
+        .feature-card p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        /* Tech Stack */
+        .stack {
+            padding: 80px 0;
+            background: var(--bg-secondary);
+        }
+
+        .stack-grid {
+            display: flex;
+            justify-content: center;
+            gap: 48px;
+            flex-wrap: wrap;
+            margin-top: 48px;
+        }
+
+        .stack-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .stack-icon {
+            width: 64px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            font-size: 2rem;
+            transition: all 0.3s ease;
+        }
+
+        .stack-item:hover .stack-icon {
+            border-color: var(--neon);
+            box-shadow: 0 0 20px var(--glow-neon);
+        }
+
+        .stack-name {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        /* CTA Section */
+        .cta {
+            padding: 120px 0;
+            text-align: center;
+            position: relative;
+        }
+
+        .cta::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            height: 80%;
+            background: radial-gradient(circle, var(--glow-neon) 0%, transparent 70%);
+            filter: blur(80px);
+            pointer-events: none;
+        }
+
+        .cta-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .cta h2 {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .cta p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            margin-bottom: 32px;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Footer */
+        footer {
+            padding: 40px 0;
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        footer p {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+
+        footer a {
+            color: var(--neon);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+
+            .hero p {
+                font-size: 1rem;
+            }
+
+            .hero-buttons {
+                flex-direction: column;
+            }
+
+            .btn {
+                justify-content: center;
+            }
+
+            .section-header h2 {
+                font-size: 2rem;
+            }
+
+            .stack-grid {
+                gap: 32px;
+            }
+        }
+
+        /* Animations */
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .float-animation {
+            animation: float 6s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav>
+        <div class="container">
+            <a href="#" class="logo">wterm</a>
+            <ul class="nav-links">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#stack">Stack</a></li>
+                <li><a href="https://github.com/luinbytes/warp-foss-clone" target="_blank">GitHub</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <div class="hero-badge">
+                    <span class="status-dot"></span>
+                    Early Development
+                </div>
+                <h1>The terminal you <span class="highlight">deserve</span></h1>
+                <p>A <span class="accent">Warp-inspired</span> terminal emulator. Fast, modern, AI-ready. Built with Go + Bubble Tea. Single binary, zero deps.</p>
+                <div class="hero-buttons">
+                    <a href="https://github.com/luinbytes/warp-foss-clone" target="_blank" class="btn btn-primary">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.385-1.335-1.755-1.335-1.755-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.605-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.295 24 12c0-6.63-5.37-12-12-12"/>
+                        </svg>
+                        View on GitHub
+                    </a>
+                    <a href="#features" class="btn btn-secondary">
+                        Learn More
+                    </a>
+                </div>
+            </div>
+
+            <!-- Terminal Preview -->
+            <div class="terminal-preview float-animation">
+                <div class="terminal-window">
+                    <div class="terminal-header">
+                        <span class="terminal-dot red"></span>
+                        <span class="terminal-dot yellow"></span>
+                        <span class="terminal-dot green"></span>
+                        <span class="terminal-title">wterm</span>
+                    </div>
+                    <div class="terminal-body">
+                        <div class="terminal-line">
+                            <span class="prompt">❯</span>
+                            <span class="command">go build -o wterm . && ./wterm</span>
+                        </div>
+                        <div class="output">
+                            <span class="success">✓</span> wterm v0.1.0 ready
+                        </div>
+                        <div class="terminal-line" style="margin-top: 16px;">
+                            <span class="prompt">❯</span>
+                            <span class="command">/ai explain this error</span>
+                        </div>
+                        <div class="output">
+                            <span style="color: var(--accent-purple);">🤖 AI:</span> That error occurs when...
+                        </div>
+                        <div class="terminal-line" style="margin-top: 16px;">
+                            <span class="prompt">❯</span>
+                            <span class="cursor"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="container">
+            <div class="section-header">
+                <h2>Why wterm?</h2>
+                <p>Because you deserve a terminal that's as fast and modern as your workflow.</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">🎨</div>
+                    <h3>Warp-Inspired UI</h3>
+                    <p>Beautiful dark theme with Tokyo Night colors. Command blocks that actually make sense. Your eyes will thank you.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">⚡</div>
+                    <h3>Blazing Fast</h3>
+                    <p>Built in Go with Bubble Tea. Single binary, zero runtime dependencies. Starts instantly, runs smoothly.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🤖</div>
+                    <h3>AI-Ready</h3>
+                    <p>Bring your own API key. AI integration stubbed and ready. Type /ai and get explanations, commands, whatever.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📦</div>
+                    <h3>Command Blocks</h3>
+                    <p>Each command + output grouped together. No more scrolling through endless noise. Clean. Organized.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📝</div>
+                    <h3>Persistent History</h3>
+                    <p>Never lose a command again. Configurable history with search. Your muscle memory, preserved.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔧</div>
+                    <h3>Configurable</h3>
+                    <p>Override colors, set history limits, add your API key. YAML config at ~/.warp-clone/config.yaml</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stack Section -->
+    <section class="stack" id="stack">
+        <div class="container">
+            <div class="section-header">
+                <h2>Built With</h2>
+                <p>Modern tools for a modern terminal.</p>
+            </div>
+            <div class="stack-grid">
+                <div class="stack-item">
+                    <div class="stack-icon">🐹</div>
+                    <span class="stack-name">Go 1.21+</span>
+                </div>
+                <div class="stack-item">
+                    <div class="stack-icon">🫧</div>
+                    <span class="stack-name">Bubble Tea</span>
+                </div>
+                <div class="stack-item">
+                    <div class="stack-icon">💄</div>
+                    <span class="stack-name">Lip Gloss</span>
+                </div>
+                <div class="stack-item">
+                    <div class="stack-icon">🧱</div>
+                    <span class="stack-name">Bubbles</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta">
+        <div class="container">
+            <div class="cta-content">
+                <h2>Ready to upgrade?</h2>
+                <p>Clone it. Build it. Run it. Your new favorite terminal awaits.</p>
+                <a href="https://github.com/luinbytes/warp-foss-clone" target="_blank" class="btn btn-primary">
+                    Get Started on GitHub
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <p>Built by <a href="https://luinbytes.dev" target="_blank">luinbytes</a> · Open Source · MIT License</p>
+        </div>
+    </footer>
+</body>
+</html>
