@@ -137,6 +137,13 @@ func InitialModel(config Config) Model {
 	s.Spinner = spinner.Dot
 	s.Style = spinnerStyle
 
+	// Load history from file if configured
+	history, err := loadHistory(config)
+	if err != nil {
+		// Log error but continue with empty history
+		history = make([]string, 0)
+	}
+
 	return Model{
 		textInput:   ti,
 		spinner:     s,
@@ -144,7 +151,7 @@ func InitialModel(config Config) Model {
 		aiMode:      false,
 		aiLoading:   false,
 		nlpParser:   NewNLPParser(),
-		history:     make([]string, 0),
+		history:     history,
 		maxHistory:  config.MaxHistory,
 		showHistory: false,
 		config:      config,
@@ -223,6 +230,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Trim history if over max
 				if len(m.history) > m.maxHistory {
 					m.history = m.history[len(m.history)-m.maxHistory:]
+				}
+				// Persist to file if configured
+				if err := appendToHistory(input, m.config); err != nil {
+					// Log error but continue - don't interrupt user experience
 				}
 			}
 			m.showHistory = false
@@ -469,14 +480,25 @@ func main() {
 	// Apply theme colors from config
 	config.ApplyTheme()
 
+	initialModel := InitialModel(config)
+
 	p := tea.NewProgram(
-		InitialModel(config),
+		initialModel,
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
 	)
 
-	if _, err := p.Run(); err != nil {
+	finalModel, err := p.Run()
+	if err != nil {
 		fmt.Printf("Error: %v", err)
+		os.Exit(1)
+	}
+
+	// Save history on exit if configured
+	if model, ok := finalModel.(Model); ok && config.History.PersistToFile {
+		if err := saveHistory(model.history, config); err != nil {
+			// Silent fail - don't interrupt exit
+		}
 	}
 }
 
