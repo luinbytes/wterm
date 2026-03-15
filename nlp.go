@@ -124,6 +124,17 @@ func (p *NLPParser) setupPatterns() {
 	p.addPattern(`docker exec (.+) (.+)`, p.cmdDockerExec, "Execute command in Docker container", true, "docker")
 	p.addPattern(`docker-compose up`, p.cmdDockerComposeUp, "Start services with docker-compose", true, "docker")
 	p.addPattern(`docker-compose down`, p.cmdDockerComposeDown, "Stop services with docker-compose", true, "docker")
+
+	// Package manager patterns
+	p.addPattern(`apt install (.+)`, p.cmdAptInstall, "Install package with apt", false, "package")
+	p.addPattern(`brew install (.+)`, p.cmdBrewInstall, "Install package with brew", false, "package")
+	p.addPattern(`npm install (.+)`, p.cmdNpmInstall, "Install package with npm", false, "package")
+	p.addPattern(`pip install (.+)`, p.cmdPipInstall, "Install package with pip", false, "package")
+	p.addPattern(`apt search (.+)`, p.cmdAptSearch, "Search package with apt", true, "package")
+	p.addPattern(`brew search (.+)`, p.cmdBrewSearch, "Search package with brew", true, "package")
+	p.addPattern(`apt update`, p.cmdAptUpdate, "Update package lists with apt", false, "package")
+	p.addPattern(`brew update`, p.cmdBrewUpdate, "Update brew", false, "package")
+	p.addPattern(`brew upgrade`, p.cmdBrewUpgrade, "Upgrade packages with brew", false, "package")
 }
 
 // Parse attempts to translate natural language to a shell command
@@ -588,4 +599,70 @@ func (p *NLPParser) cmdDockerComposeUp(re *regexp.Regexp, input string) string {
 
 func (p *NLPParser) cmdDockerComposeDown(re *regexp.Regexp, input string) string {
 	return "docker-compose down"
+}
+
+func (p *NLPParser) cmdAptInstall(re *regexp.Regexp, input string) string {
+	matches := re.FindStringSubmatch(input)
+	if len(matches) > 1 {
+		pkg := strings.TrimSpace(matches[1])
+		return fmt.Sprintf("sudo apt install -y %s", pkg)
+	}
+	return ""
+}
+
+func (p *NLPParser) cmdBrewInstall(re *regexp.Regexp, input string) string {
+	matches := re.FindStringSubmatch(input)
+	if len(matches) > 1 {
+		pkg := strings.TrimSpace(matches[1])
+		return fmt.Sprintf("brew install %s", pkg)
+	}
+	return ""
+}
+
+func (p *NLPParser) cmdNpmInstall(re *regexp.Regexp, input string) string {
+	matches := re.FindStringSubmatch(input)
+	if len(matches) > 1 {
+		pkg := strings.TrimSpace(matches[1])
+		return fmt.Sprintf("npm install %s", pkg)
+	}
+	return ""
+}
+
+func (p *NLPParser) cmdPipInstall(re *regexp.Regexp, input string) string {
+	matches := re.FindStringSubmatch(input)
+	if len(matches) > 1 {
+		pkg := strings.TrimSpace(matches[1])
+		return fmt.Sprintf("pip install %s", pkg)
+	}
+	return ""
+}
+
+func (p *NLPParser) cmdAptSearch(re *regexp.Regexp, input string) string {
+	matches := re.FindStringSubmatch(input)
+	if len(matches) > 1 {
+		pkg := strings.TrimSpace(matches[1])
+		return fmt.Sprintf("apt search %s", pkg)
+	}
+	return ""
+}
+
+func (p *NLPParser) cmdBrewSearch(re *regexp.Regexp, input string) string {
+	matches := re.FindStringSubmatch(input)
+	if len(matches) > 1 {
+		pkg := strings.TrimSpace(matches[1])
+		return fmt.Sprintf("brew search %s", pkg)
+	}
+	return ""
+}
+
+func (p *NLPParser) cmdAptUpdate(re *regexp.Regexp, input string) string {
+	return "sudo apt update"
+}
+
+func (p *NLPParser) cmdBrewUpdate(re *regexp.Regexp, input string) string {
+	return "brew update"
+}
+
+func (p *NLPParser) cmdBrewUpgrade(re *regexp.Regexp, input string) string {
+	return "brew upgrade"
 }
