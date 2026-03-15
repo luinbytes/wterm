@@ -2,7 +2,7 @@
 
 A free and open-source terminal emulator inspired by [Warp](https://warp.dev/), built with Go and Bubble Tea TUI.
 
-> ⚡ **Status:** Early development. Basic TUI works with AI integration stubs.
+> ⚡ **Status:** Early development. Basic TUI with shell execution works, AI integration stubbed.
 
 ## Features
 
@@ -97,7 +97,11 @@ func (m *Model) stubAICall(prompt string) tea.Cmd {
 
 ## Terminal Execution
 
-Commands are executed via `exec.Command` using the platform-appropriate shell (`sh` on Unix, `cmd` on Windows). The output is captured and displayed in styled command blocks.
+Commands are executed using `exec.Command` with platform-appropriate shells:
+- Unix systems: `sh -c "command"`
+- Windows: `cmd /c "command"`
+
+Execution happens asynchronously via `executeCommand()` in `main.go`, returning results as `CommandExecMsg` messages that are appended to the command history.
 
 ## Project Structure
 
@@ -116,7 +120,7 @@ warp-foss-clone/
 
 ## Roadmap
 
-- [ ] Real shell/PTY integration
+- [x] Shell command execution (async, platform-aware)
 - [ ] Wire up AI API (configurable provider)
 - [ ] Scrollback buffer
 - [ ] Tab completion
