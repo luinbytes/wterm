@@ -23,6 +23,29 @@ func stripANSI(s string) string {
 	return ansiRegex.ReplaceAllString(s, "")
 }
 
+// wrapText hard-wraps a string so no line exceeds maxWidth characters.
+func wrapText(s string, maxWidth int) string {
+	if maxWidth <= 0 {
+		return s
+	}
+	var result strings.Builder
+	for _, line := range strings.Split(s, "\n") {
+		for len(line) > maxWidth {
+			result.WriteString(line[:maxWidth])
+			result.WriteByte('\n')
+			line = line[maxWidth:]
+		}
+		result.WriteString(line)
+		result.WriteByte('\n')
+	}
+	// Remove trailing newline added by loop
+	out := result.String()
+	if len(out) > 0 {
+		out = out[:len(out)-1]
+	}
+	return out
+}
+
 // Platform-safe prompt symbols to avoid Unicode width issues on Windows
 func safePrompt() string {
 	if runtime.GOOS == "windows" {
@@ -382,7 +405,7 @@ func (m *Model) updateViewport() {
 		blockContent.WriteString(cmdLine + "\n")
 
 		if block.Output != "" {
-			cleanOutput := stripANSI(block.Output)
+			cleanOutput := wrapText(stripANSI(block.Output), blockWidth-4)
 			blockContent.WriteString(outputStyle.Render(cleanOutput))
 		}
 
