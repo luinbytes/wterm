@@ -496,6 +496,7 @@ func main() {
 	if model, ok := finalModel.(Model); ok && config.History.PersistToFile {
 		_ = saveHistory(model.history, config) // Silent fail - don't interrupt exit}
 			}
+	}
 
 // executeCommand runs a shell command asynchronously
 func executeCommand(originalInput, cmdStr, desc string) tea.Cmd {
