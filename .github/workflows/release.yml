@@ -9,92 +9,43 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build Release
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            goos: linux
-            goarch: amd64
-            artifact_name: warp-clone
-            asset_name: warp-clone-linux-amd64.tar.gz
-          - os: ubuntu-latest
-            goos: linux
-            goarch: arm64
-            artifact_name: warp-clone
-            asset_name: warp-clone-linux-arm64.tar.gz
-          - os: macos-latest
-            goos: darwin
-            goarch: amd64
-            artifact_name: warp-clone
-            asset_name: warp-clone-darwin-amd64.tar.gz
-          - os: macos-latest
-            goos: darwin
-            goarch: arm64
-            artifact_name: warp-clone
-            asset_name: warp-clone-darwin-arm64.tar.gz
-          - os: windows-latest
-            goos: windows
-            goarch: amd64
-            artifact_name: warp-clone.exe
-            asset_name: warp-clone-windows-amd64.zip
-          - os: windows-latest
-            goos: windows
-            goarch: arm64
-            artifact_name: warp-clone.exe
-            asset_name: warp-clone-windows-arm64.zip
+  release:
+    name: Build and Release
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: '1.21'
 
-      - name: Download dependencies
-        run: go mod tidy && go mod download
+      - name: Get version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      - name: Build
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: 0
-        run: go build -ldflags="-s -w" -o ${{ matrix.artifact_name }} .
+      - name: Build Linux amd64
+        run: GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o wterm-linux-amd64 .
 
-      - name: Create archive (Unix)
-        if: matrix.os != 'windows-latest'
-        run: tar -czvf ${{ matrix.asset_name }} ${{ matrix.artifact_name }}
+      - name: Build Linux arm64
+        run: GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o wterm-linux-arm64 .
 
-      - name: Create archive (Windows)
-        if: matrix.os == 'windows-latest'
-        run: 7z a ${{ matrix.asset_name }} ${{ matrix.artifact_name }}
+      - name: Build macOS amd64
+        run: GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o wterm-darwin-amd64 .
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Build macOS arm64
+        run: GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o wterm-darwin-arm64 .
+
+      - name: Build Windows
+        run: GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o wterm-windows-amd64.exe .
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
         with:
-          name: ${{ matrix.asset_name }}
-          path: ${{ matrix.asset_name }}
-
-  release:
-    name: Create Release
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: false
-
-      - name: List artifacts
-        run: ls -la artifacts/
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: artifacts/**/*
+          files: |
+            wterm-linux-amd64
+            wterm-linux-arm64
+            wterm-darwin-amd64
+            wterm-darwin-arm64
+            wterm-windows-amd64.exe
           generate_release_notes: true
