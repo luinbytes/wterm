@@ -405,7 +405,7 @@ func (m *Model) updateViewport() {
 		blockContent.WriteString(cmdLine + "\n")
 
 		if block.Output != "" {
-			cleanOutput := wrapText(stripANSI(block.Output), blockWidth-4)
+			cleanOutput := wrapText(stripANSI(block.Output), blockWidth-8)
 			blockContent.WriteString(outputStyle.Render(cleanOutput))
 		}
 
