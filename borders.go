@@ -11,7 +11,7 @@ import (
 // as broken pipe characters on Windows even with VT processing enabled.
 func safeBorder() lipgloss.Border {
 	if runtime.GOOS == "windows" {
-		return lipgloss.NormalBorder()
+		return lipgloss.HiddenBorder()
 	}
 	return lipgloss.RoundedBorder()
 }
