@@ -232,10 +232,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.history = m.history[len(m.history)-m.maxHistory:]
 				}
 				// Persist to file if configured
-				if err := appendToHistory(input, m.config); err != nil {
-					// Log error but continue - don't interrupt user experience
-				}
-			}
+						_ = appendToHistory(input, m.config) // Log error but continue - don't interrupt user experience}
+					}
 			m.showHistory = false
 
 			if m.aiMode {
@@ -496,11 +494,8 @@ func main() {
 
 	// Save history on exit if configured
 	if model, ok := finalModel.(Model); ok && config.History.PersistToFile {
-		if err := saveHistory(model.history, config); err != nil {
-			// Silent fail - don't interrupt exit
-		}
-	}
-}
+		_ = saveHistory(model.history, config) // Silent fail - don't interrupt exit}
+			}
 
 // executeCommand runs a shell command asynchronously
 func executeCommand(originalInput, cmdStr, desc string) tea.Cmd {
