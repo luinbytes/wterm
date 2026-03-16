@@ -340,6 +340,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
+			// Handle /clear command
+			if input == "/clear" {
+				m.blocks = []CommandBlock{}
+				m.textInput.SetValue("")
+				m.updateViewport()
+				return m, nil
+			}
+
 			// Handle /pwd command - print working directory
 			if input == "/pwd" {
 				m.blocks = append(m.blocks, CommandBlock{Command: input, Output: m.cwd, IsAI: false, ExitCode: -1})
@@ -354,6 +362,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.updateViewport()
 				return m, nil
 			}
+
+			// Add to history (unless it's a duplicate of the last entry)
 			if len(m.history) == 0 || m.history[len(m.history)-1] != input {
 				m.history = append(m.history, input)
 				if len(m.history) > m.maxHistory {
@@ -672,7 +682,7 @@ func (m Model) View() string {
 	b.WriteString(inputBar + "\n")
 
 	// Help bar
-	help := helpStyle.Render("Tab: AI • →: Accept suggestion • Ctrl+L: Clear • Ctrl+Up/Down: History • ↑↓/PgUp/PgDn: Scroll • /history: History • /search: Find • Ctrl+C: Quit")
+	help := helpStyle.Render("Tab: AI • →: Accept suggestion • Ctrl+L: Clear • Ctrl+Up/Down: History • ↑↓/PgUp/PgDn: Scroll • /clear: Clear • /history: History • /search: Find • Ctrl+C: Quit")
 	b.WriteString(help)
 
 	return b.String()
