@@ -18,23 +18,28 @@ jobs:
           - os: ubuntu-latest
             goos: linux
             goarch: amd64
-            artifact_name: warp-clone
-            archive_name: warp-clone-linux-amd64.tar.gz
+            artifact_name: wterm
+            archive_name: wterm-linux-amd64.tar.gz
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            artifact_name: wterm
+            archive_name: wterm-linux-arm64.tar.gz
           - os: macos-latest
             goos: darwin
             goarch: amd64
-            artifact_name: warp-clone
-            archive_name: warp-clone-darwin-amd64.tar.gz
+            artifact_name: wterm
+            archive_name: wterm-darwin-amd64.tar.gz
           - os: macos-latest
             goos: darwin
             goarch: arm64
-            artifact_name: warp-clone
-            archive_name: warp-clone-darwin-arm64.tar.gz
+            artifact_name: wterm
+            archive_name: wterm-darwin-arm64.tar.gz
           - os: windows-latest
             goos: windows
             goarch: amd64
-            artifact_name: warp-clone.exe
-            archive_name: warp-clone-windows-amd64.zip
+            artifact_name: wterm.exe
+            archive_name: wterm-windows-amd64.zip
     steps:
       - uses: actions/checkout@v4
 

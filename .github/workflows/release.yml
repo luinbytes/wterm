@@ -18,7 +18,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.22'
 
       - name: Get version
         id: version
@@ -36,7 +36,7 @@ jobs:
       - name: Build macOS arm64
         run: GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o wterm-darwin-arm64 .
 
-      - name: Build Windows
+      - name: Build Windows amd64
         run: GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o wterm-windows-amd64.exe .
 
       - name: Create Release
