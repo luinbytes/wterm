@@ -409,7 +409,13 @@ func (m *Model) updateViewport() {
 			blockContent.WriteString(outputStyle.Render(cleanOutput))
 		}
 
-		styledBlock := cmdBlockStyle.Width(blockWidth).Render(blockContent.String())
+				var styledBlock string
+				if runtime.GOOS == "windows" {
+								sep := strings.Repeat("-", blockWidth)
+								styledBlock = sep + "\n" + blockContent.String()
+							} else {
+								styledBlock = cmdBlockStyle.Width(blockWidth).Render(blockContent.String())
+							}
 		content.WriteString(styledBlock + "\n")
 	}
 
