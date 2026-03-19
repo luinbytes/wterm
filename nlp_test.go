@@ -690,3 +690,39 @@ func TestNLPParserTrimmedInput(t *testing.T) {
 		})
 	}
 }
+
+func TestFindSuggestion(t *testing.T) {
+	m := Model{
+		history: []string{"echo hello", "ls -la", "echo world", "git status"},
+	}
+
+	// Test exact prefix match (most recent)
+	s := m.findSuggestion("ec")
+	if s != "ho world" {
+		t.Errorf("expected 'ho world', got %q", s)
+	}
+
+	// Test no match
+	s = m.findSuggestion("xyz")
+	if s != "" {
+		t.Errorf("expected empty, got %q", s)
+	}
+
+	// Test empty input
+	s = m.findSuggestion("")
+	if s != "" {
+		t.Errorf("expected empty, got %q", s)
+	}
+
+	// Test case insensitive
+	s = m.findSuggestion("EC")
+	if s != "ho world" {
+		t.Errorf("expected 'ho world', got %q", s)
+	}
+
+	// Test full match returns empty (don't suggest same text)
+	s = m.findSuggestion("echo world")
+	if s != "" {
+		t.Errorf("expected empty for full match, got %q", s)
+	}
+}

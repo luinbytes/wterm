@@ -147,6 +147,9 @@ func initStyles() {
 		Foreground(themeYellow)
 }
 
+// suggestionStyle renders auto-suggestion text (grayed out, dim)
+var suggestionStyle = lipgloss.NewStyle().Foreground(themeMuted).Faint(true)
+
 // CommandBlock represents a command + its output
 type CommandBlock struct {
 	Command string
@@ -170,6 +173,7 @@ type Model struct {
 	cmdRunning  bool
 	history     []string
 	maxHistory  int
+	suggestion  string
 	showHistory bool
 	cwd        string
 	config      Config
@@ -262,6 +266,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case tea.KeyEnter:
 			input := strings.TrimSpace(m.textInput.Value())
+			m.suggestion = ""
 			if input == "" {
 				return m, nil
 			}
@@ -328,6 +333,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			return m, tea.Batch(cmds...)
+
+		case tea.KeyRight:
+			// Accept auto-suggestion if present
+			if m.suggestion != "" {
+				m.textInput.SetValue(m.textInput.Value() + m.suggestion)
+				m.suggestion = ""
+			}
+			return m, nil
+
 		case tea.KeyPgUp:
 			m.viewport.HalfViewUp()
 			return m, nil
@@ -394,6 +408,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	m.textInput, cmd = m.textInput.Update(msg)
+	// Update auto-suggestion based on current input
+	if !m.cmdRunning && !m.aiLoading && !m.showHistory {
+		m.suggestion = m.findSuggestion(m.textInput.Value())
+	}
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
@@ -458,6 +476,23 @@ func (m *Model) updateViewport() {
 }
 
 // updateHistoryView shows the command history
+
+// findSuggestion returns the most recent history entry that starts with the current input
+func (m *Model) findSuggestion(input string) string {
+	if input == "" || len(m.history) == 0 {
+		return ""
+	}
+	input = strings.ToLower(input)
+	for i := len(m.history) - 1; i >= 0; i-- {
+		if strings.HasPrefix(strings.ToLower(m.history[i]), input) {
+			candidate := m.history[i]
+			if candidate != input {
+				return strings.TrimPrefix(candidate, input)
+			}
+		}
+	}
+	return ""
+}
 func (m *Model) updateHistoryView() {
 	if !m.ready {
 		return
@@ -504,13 +539,14 @@ func (m Model) View() string {
 	} else if m.aiMode {
 		inputPrompt = fmt.Sprintf("%s %s", safeAIPrompt(), m.textInput.View())
 	} else {
-		inputPrompt = m.textInput.View()
+		inputPrompt = m.textInput.View() + suggestionStyle.Render(m.suggestion)
 	}
 
 	inputBar := inputContainerStyle.Width(m.width - 2).Render(inputPrompt)
 	b.WriteString(inputBar + "\n")
 
-	help := helpStyle.Render("Tab: AI -- Up/Down/PgUp/PgDn: Scroll -- /history: History -- Ctrl+C: Quit")
+	// Help bar
+	help := helpStyle.Render("Tab: AI • →: Accept suggestion • ↑↓/PgUp/PgDn: Scroll • /history: History • Ctrl+C: Quit")
 	b.WriteString(help)
 
 	return b.String()
