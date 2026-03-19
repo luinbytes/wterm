@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"regexp"
 	"runtime"
 	"strings"
 
@@ -13,38 +12,8 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
-
-// ansiRegex matches ANSI escape sequences for stripping
-var ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
-
-// stripANSI removes ANSI escape sequences from a string
-func stripANSI(s string) string {
-	return ansiRegex.ReplaceAllString(s, "")
-}
-
-// wrapText hard-wraps a string so no line exceeds maxWidth characters.
-func wrapText(s string, maxWidth int) string {
-	if maxWidth <= 0 {
-		return s
-	}
-	var result strings.Builder
-	for _, line := range strings.Split(s, "\n") {
-		for len(line) > maxWidth {
-			result.WriteString(line[:maxWidth])
-			result.WriteByte('\n')
-			line = line[maxWidth:]
-		}
-		result.WriteString(line)
-		result.WriteByte('\n')
-	}
-	// Remove trailing newline added by loop
-	out := result.String()
-	if len(out) > 0 {
-		out = out[:len(out)-1]
-	}
-	return out
-}
 
 // Platform-safe prompt symbols to avoid Unicode width issues on Windows
 func safePrompt() string {
@@ -589,21 +558,18 @@ func (m *Model) updateViewport() {
 		blockContent.WriteString(cmdLine + "\n")
 
 		if block.Output != "" {
-			cleanOutput := wrapText(strings.TrimSpace(stripANSI(block.Output)), blockWidth-8)
-			if runtime.GOOS == "windows" {
-				blockContent.WriteString(cleanOutput)
-			} else {
-				blockContent.WriteString(outputStyle.Render(cleanOutput))
-			}
+			// Strip ANSI escape sequences to get the visible text width
+			cleanOutput := ansi.Strip(block.Output)
+			blockContent.WriteString(outputStyle.Render(cleanOutput))
 		}
 
-				var styledBlock string
-				if runtime.GOOS == "windows" {
-								sep := strings.Repeat("-", blockWidth)
-								styledBlock = sep + "\n" + blockContent.String()
-							} else {
-								styledBlock = cmdBlockStyle.Width(blockWidth).Render(blockContent.String())
-							}
+		var styledBlock string
+		if runtime.GOOS == "windows" {
+			sep := strings.Repeat("-", blockWidth)
+			styledBlock = sep + "\n" + blockContent.String()
+		} else {
+			styledBlock = cmdBlockStyle.Width(blockWidth).Render(blockContent.String())
+		}
 		content.WriteString(styledBlock + "\n")
 	}
 
