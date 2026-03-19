@@ -171,6 +171,7 @@ type Model struct {
 	history     []string
 	maxHistory  int
 	showHistory bool
+	cwd        string
 	config      Config
 }
 
@@ -183,6 +184,7 @@ type CommandExecMsg struct {
 
 // InitialModel creates the initial application state
 func InitialModel(config Config) Model {
+	cwd, _ := os.Getwd()
 	ti := textinput.New()
 	ti.Placeholder = "Type a command or natural language..."
 	ti.PlaceholderStyle = lipgloss.NewStyle().Foreground(themeMuted)
@@ -210,6 +212,7 @@ func InitialModel(config Config) Model {
 		history:     history,
 		maxHistory:  config.MaxHistory,
 		showHistory: false,
+		cwd:        cwd,
 		config:      config,
 	}
 }
@@ -272,6 +275,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			}
+			// Handle /cd command - change working directory
+			if strings.HasPrefix(input, "/cd ") {
+				target := strings.TrimSpace(strings.TrimPrefix(input, "/cd "))
+				if target == "~" {
+					target, _ = os.UserHomeDir()
+				}
+				if target == "" {
+					return m, nil
+				}
+				if err := os.Chdir(target); err != nil {
+					m.blocks = append(m.blocks, CommandBlock{Command: input, Output: fmt.Sprintf("cd: %s", err), IsAI: false})
+				} else {
+					m.cwd, _ = os.Getwd()
+					m.blocks = append(m.blocks, CommandBlock{Command: input, Output: fmt.Sprintf("Changed directory to %s", m.cwd), IsAI: false})
+				}
+				m.textInput.SetValue("")
+				m.updateViewport()
+				return m, nil
+			}
+
+			// Handle /pwd command - print working directory
+			if input == "/pwd" {
+				m.blocks = append(m.blocks, CommandBlock{Command: input, Output: m.cwd, IsAI: false})
+				m.textInput.SetValue("")
+				m.updateViewport()
+				return m, nil
+			}
 			if len(m.history) == 0 || m.history[len(m.history)-1] != input {
 				m.history = append(m.history, input)
 				if len(m.history) > m.maxHistory {
@@ -290,11 +320,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if matched {
 					m.cmdRunning = true
 					m.textInput.SetValue("")
-					return m, executeCommand(input, cmd, desc)
+					return m, executeCommand(input, cmd, desc, m.cwd)
 				} else {
 					m.cmdRunning = true
 					m.textInput.SetValue("")
-					return m, executeCommand(input, input, "")
+					return m, executeCommand(input, input, "", m.cwd)
 				}
 			}
 			return m, tea.Batch(cmds...)
@@ -518,7 +548,7 @@ func main() {
 }
 
 // executeCommand runs a shell command asynchronously
-func executeCommand(originalInput, cmdStr, desc string) tea.Cmd {
+func executeCommand(originalInput, cmdStr, desc, cwd string) tea.Cmd {
 	return func() tea.Msg {
 		var shell, flag string
 		if runtime.GOOS == "windows" {
@@ -530,7 +560,7 @@ func executeCommand(originalInput, cmdStr, desc string) tea.Cmd {
 		}
 
 		cmd := exec.Command(shell, flag, cmdStr)
-		cmd.Dir, _ = os.Getwd()
+		cmd.Dir = cwd
 		output, err := cmd.CombinedOutput()
 
 		var result string
