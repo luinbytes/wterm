@@ -23,11 +23,56 @@ func stripANSI(s string) string {
 	return ansiRegex.ReplaceAllString(s, "")
 }
 
+// wrapText hard-wraps a string so no line exceeds maxWidth characters.
+func wrapText(s string, maxWidth int) string {
+	if maxWidth <= 0 {
+		return s
+	}
+	var result strings.Builder
+	for _, line := range strings.Split(s, "\n") {
+		for len(line) > maxWidth {
+			result.WriteString(line[:maxWidth])
+			result.WriteByte('\n')
+			line = line[maxWidth:]
+		}
+		result.WriteString(line)
+		result.WriteByte('\n')
+	}
+	// Remove trailing newline added by loop
+	out := result.String()
+	if len(out) > 0 {
+		out = out[:len(out)-1]
+	}
+	return out
+}
+
+// Platform-safe prompt symbols to avoid Unicode width issues on Windows
+func safePrompt() string {
+	if runtime.GOOS == "windows" {
+		return ">"
+	}
+	return "\u276f"
+}
+
+func safeAIPrompt() string {
+	if runtime.GOOS == "windows" {
+		return "*"
+	}
+	return "\u2728"
+}
+
+func safeHistoryIcon() string {
+	if runtime.GOOS == "windows" {
+		return "#"
+	}
+	return "\U0001f4dc"
+}
+
 // Warp-inspired dark theme colors
 var (
 	themeBg       = lipgloss.Color("#1a1b26")
 	themeFg       = lipgloss.Color("#c0caf5")
-	themeMuted    = lipgloss.Color("#a9b1d6") // Brighter for visibility
+	themeMuted    = lipgloss.Color("#a9b1d6")
 	themeAccent   = lipgloss.Color("#7aa2f7")
 	themeGreen    = lipgloss.Color("#9ece6a")
 	themeYellow   = lipgloss.Color("#e0af68")
@@ -38,59 +83,72 @@ var (
 	themeInputBg  = lipgloss.Color("#16161e")
 )
 
-// init ensures theme variables are used (config.go references them for overrides)
 func init() {
-	// These variables are used by config.go's ApplyTheme() function
-	// Reference them here to satisfy the linter
 	_ = themeBg
 	_ = themeRed
 	_ = themeCmdBlock
 	_ = themeInputBg
 }
 
-// Styles
+// Styles -- initialized in initStyles() after setupConsole() runs
 var (
+	titleStyle          lipgloss.Style
+	cmdBlockStyle       lipgloss.Style
+	cmdPromptStyle      lipgloss.Style
+	cmdInputStyle       lipgloss.Style
+	outputStyle         lipgloss.Style
+	inputContainerStyle lipgloss.Style
+	helpStyle           lipgloss.Style
+	aiIndicatorStyle    lipgloss.Style
+	spinnerStyle        lipgloss.Style
+)
+
+// initStyles sets up all lipgloss styles using the correct border for the platform.
+// Must be called after setupConsole() so VT mode is active before any rendering.
+func initStyles() {
+	border := safeBorder()
+
 	titleStyle = lipgloss.NewStyle().
-			Foreground(themeAccent).
-			Bold(true).
-			Padding(0, 1)
+		Foreground(themeAccent).
+		Bold(true).
+		Padding(0, 1)
 
 	cmdBlockStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(themeBorder).
-			Padding(0, 1).
-			Margin(0, 1, 1, 1)
+		Border(border).
+		BorderForeground(themeBorder).
+		Padding(0, 1).
+		Margin(0, 1, 1, 1)
 
 	cmdPromptStyle = lipgloss.NewStyle().
-			Foreground(themeGreen).
-			Bold(true)
+		Foreground(themeGreen).
+		Bold(true)
 
 	cmdInputStyle = lipgloss.NewStyle().
-			Foreground(themeFg)
+		Foreground(themeFg)
 
 	outputStyle = lipgloss.NewStyle().
-			Foreground(themeMuted).
-			Padding(0, 1)
+		Foreground(themeMuted).
+		Padding(0, 1)
 
 	inputContainerStyle = lipgloss.NewStyle().
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(themeAccent).
-				Padding(0, 1)
+		Border(border).
+		BorderForeground(themeAccent).
+		Padding(0, 1)
 
 	helpStyle = lipgloss.NewStyle().
-			Foreground(themeMuted).
-			Padding(0, 1)
+		Foreground(themeMuted).
+		Padding(0, 1)
 
 	aiIndicatorStyle = lipgloss.NewStyle().
-				Foreground(themePurple).
-				Bold(true)
+		Foreground(themePurple).
+		Bold(true)
 
 	spinnerStyle = lipgloss.NewStyle().
-			Foreground(themeYellow)
-)
+		Foreground(themeYellow)
+}
+
 // suggestionStyle renders auto-suggestion text (grayed out, dim)
 var suggestionStyle = lipgloss.NewStyle().Foreground(themeMuted).Faint(true)
-
 
 // CommandBlock represents a command + its output
 type CommandBlock struct {
@@ -133,7 +191,7 @@ func InitialModel(config Config) Model {
 	ti.Placeholder = "Type a command or natural language..."
 	ti.PlaceholderStyle = lipgloss.NewStyle().Foreground(themeMuted)
 	ti.PromptStyle = cmdPromptStyle
-	ti.Prompt = "❯ "
+	ti.Prompt = safePrompt() + " "
 	ti.TextStyle = cmdInputStyle
 	ti.Focus()
 
@@ -141,10 +199,8 @@ func InitialModel(config Config) Model {
 	s.Spinner = spinner.Dot
 	s.Style = spinnerStyle
 
-	// Load history from file if configured
 	history, err := loadHistory(config)
 	if err != nil {
-		// Log error but continue with empty history
 		history = make([]string, 0)
 	}
 
@@ -183,41 +239,34 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlC:
 			if m.aiMode {
 				m.aiMode = false
-				m.textInput.Prompt = "❯ "
+				m.textInput.Prompt = safePrompt() + " "
 				m.textInput.Placeholder = "Type a command..."
 				return m, nil
 			}
 			return m, tea.Quit
-
 		case tea.KeyEsc:
-			// Esc only exits AI mode, never quits
 			if m.aiMode {
 				m.aiMode = false
-				m.textInput.Prompt = "❯ "
+				m.textInput.Prompt = safePrompt() + " "
 				m.textInput.Placeholder = "Type a command..."
 			}
 			return m, nil
-
 		case tea.KeyTab:
-			// Tab toggles AI mode
 			m.aiMode = !m.aiMode
 			if m.aiMode {
-				m.textInput.Prompt = "✨ "
+				m.textInput.Prompt = safeAIPrompt() + " "
 				m.textInput.Placeholder = "Ask AI anything..."
 			} else {
-				m.textInput.Prompt = "❯ "
+				m.textInput.Prompt = safePrompt() + " "
 				m.textInput.Placeholder = "Type a command..."
 			}
 			return m, nil
-
 		case tea.KeyEnter:
 			input := strings.TrimSpace(m.textInput.Value())
 			m.suggestion = ""
 			if input == "" {
 				return m, nil
 			}
-
-			// Handle /history command
 			if input == "/history" {
 				m.showHistory = !m.showHistory
 				m.textInput.SetValue("")
@@ -228,44 +277,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			}
-
-			// Add to history (unless it's a duplicate of the last entry)
 			if len(m.history) == 0 || m.history[len(m.history)-1] != input {
 				m.history = append(m.history, input)
-				// Trim history if over max
 				if len(m.history) > m.maxHistory {
 					m.history = m.history[len(m.history)-m.maxHistory:]
 				}
-				// Persist to file if configured
-				if err := appendToHistory(input, m.config); err != nil {
-					// Log error but continue - don't interrupt user experience
-				}
+				_ = appendToHistory(input, m.config)
 			}
 			m.showHistory = false
-
 			if m.aiMode {
-				// AI mode - stub the call
 				m.aiPrompt = input
 				m.aiLoading = true
 				m.textInput.SetValue("")
 				cmds = append(cmds, stubAICall(input))
 			} else {
-				// Try NLP parsing first
 				cmd, matched, desc := m.nlpParser.Parse(input)
 				if matched {
-					// Execute the translated command
 					m.cmdRunning = true
 					m.textInput.SetValue("")
 					return m, executeCommand(input, cmd, desc)
 				} else {
-					// Execute raw command
 					m.cmdRunning = true
 					m.textInput.SetValue("")
 					return m, executeCommand(input, input, "")
 				}
 			}
 			return m, tea.Batch(cmds...)
-
 
 		case tea.KeyRight:
 			// Accept auto-suggestion if present
@@ -274,21 +311,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.suggestion = ""
 			}
 			return m, nil
+
 		case tea.KeyPgUp:
 			m.viewport.HalfViewUp()
 			return m, nil
-
 		case tea.KeyPgDown:
 			m.viewport.HalfViewDown()
 			return m, nil
-
 		case tea.KeyUp:
-			// Scroll up in viewport
 			m.viewport.LineUp(1)
 			return m, nil
-
 		case tea.KeyDown:
-			// Scroll down in viewport
 			m.viewport.LineDown(1)
 			return m, nil
 		}
@@ -296,13 +329,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-
-		// Reserve space for input bar (3 lines) and help bar (1 line)
 		viewportHeight := m.height - 4
 		if viewportHeight < 1 {
 			viewportHeight = 1
 		}
-
 		m.viewport = viewport.New(m.width, viewportHeight)
 		m.viewport.Style = lipgloss.NewStyle().Padding(0, 0)
 		m.ready = true
@@ -321,7 +351,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.cmdRunning = false
 		var output string
 		if msg.Error != nil {
-			output = fmt.Sprintf("[NLP → %s]\nError: %v\n\n%s", msg.Command, msg.Error, msg.Output)
+			output = fmt.Sprintf("[NLP -> %s]\nError: %v\n\n%s", msg.Command, msg.Error, msg.Output)
 		} else if msg.Output != "" {
 			output = msg.Output
 		} else {
@@ -339,7 +369,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 
 	case tea.MouseMsg:
-		// Handle mouse scroll wheel
 		switch msg.Button {
 		case tea.MouseButtonWheelUp:
 			m.viewport.LineUp(3)
@@ -348,7 +377,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Update text input
 	m.textInput, cmd = m.textInput.Update(msg)
 	// Update auto-suggestion based on current input
 	if !m.cmdRunning && !m.aiLoading && !m.showHistory {
@@ -367,49 +395,49 @@ type AIResponseMsg struct {
 // stubAICall simulates an AI API call
 func stubAICall(prompt string) tea.Cmd {
 	return func() tea.Msg {
-		// TODO: Wire up actual AI API here
-		// For now, return a stubbed response
 		response := fmt.Sprintf("AI Response to: %q\n\n[This is a placeholder - wire up your AI API key here]", prompt)
 		return AIResponseMsg{Response: response}
 	}
 }
 
-// executeCommand runs a shell command asynchronously
+// updateViewport re-renders all command blocks into the viewport
 func (m *Model) updateViewport() {
 	if !m.ready {
 		return
 	}
 
-	// Calculate block width: viewport width minus margins (1 each side) and borders (1 each side)
-	// cmdBlockStyle has Margin(0, 1, 1, 1) = left margin 1, and border takes 2 chars (left + right)
-	// Also account for padding inside the block Padding(0, 1) = 2 chars
-	blockWidth := m.width - 6 // margin(2) + border(2) + padding(2)
+	blockWidth := m.width - 6
 	if blockWidth < 10 {
 		blockWidth = 10
 	}
 
 	var content strings.Builder
-
 	for _, block := range m.blocks {
 		var blockContent strings.Builder
 
-		// Command line
-		prompt := cmdPromptStyle.Render("❯")
+		prompt := cmdPromptStyle.Render(safePrompt())
 		if block.IsAI {
-			prompt = aiIndicatorStyle.Render("✨")
+			prompt = aiIndicatorStyle.Render(safeAIPrompt())
 		}
 		cmdLine := fmt.Sprintf("%s %s", prompt, cmdInputStyle.Render(block.Command))
 		blockContent.WriteString(cmdLine + "\n")
 
-		// Output - strip ANSI codes before adding to prevent width overflow
 		if block.Output != "" {
-			// Strip ANSI escape sequences to get the visible text width
-			cleanOutput := stripANSI(block.Output)
-			blockContent.WriteString(outputStyle.Render(cleanOutput))
+			cleanOutput := wrapText(strings.TrimSpace(stripANSI(block.Output)), blockWidth-8)
+			if runtime.GOOS == "windows" {
+				blockContent.WriteString(cleanOutput)
+			} else {
+				blockContent.WriteString(outputStyle.Render(cleanOutput))
+			}
 		}
 
-		// Wrap in styled block with fixed width to ensure consistent border rendering
-		styledBlock := cmdBlockStyle.Width(blockWidth).Render(blockContent.String())
+				var styledBlock string
+				if runtime.GOOS == "windows" {
+								sep := strings.Repeat("-", blockWidth)
+								styledBlock = sep + "\n" + blockContent.String()
+							} else {
+								styledBlock = cmdBlockStyle.Width(blockWidth).Render(blockContent.String())
+							}
 		content.WriteString(styledBlock + "\n")
 	}
 
@@ -441,22 +469,19 @@ func (m *Model) updateHistoryView() {
 	}
 
 	var content strings.Builder
-	content.WriteString(titleStyle.Render("📜 Command History") + "\n\n")
+	content.WriteString(titleStyle.Render(safeHistoryIcon() + " Command History") + "\n\n")
 
 	if len(m.history) == 0 {
 		content.WriteString(outputStyle.Render("No commands in history yet."))
 	} else {
-		// Show last 50 commands (or all if less)
 		start := 0
 		if len(m.history) > 50 {
 			start = len(m.history) - 50
 		}
-
 		for i := start; i < len(m.history); i++ {
 			num := fmt.Sprintf("%4d", i+1)
-			content.WriteString(fmt.Sprintf("%s  %s\n", cmdPromptStyle.Render(num), cmdInputStyle.Render(m.history[i])))
+			content.WriteString(fmt.Sprintf("%s %s\n", cmdPromptStyle.Render(num), cmdInputStyle.Render(m.history[i])))
 		}
-
 		content.WriteString("\n" + helpStyle.Render(fmt.Sprintf("(%d/%d commands shown)", len(m.history)-start, len(m.history))))
 	}
 
@@ -472,24 +497,21 @@ func (m Model) View() string {
 
 	var b strings.Builder
 
-	// Title bar
-	title := titleStyle.Render("Warp Clone • Go + Bubble Tea")
+	title := titleStyle.Render("wterm -- Go + Bubble Tea")
 	b.WriteString(title + "\n\n")
-
-	// Viewport (command blocks)
 	b.WriteString(m.viewport.View() + "\n")
 
-	// Input bar
 	var inputPrompt string
 	if m.cmdRunning {
 		inputPrompt = fmt.Sprintf("%s Running... %s", m.spinner.View(), m.textInput.View())
 	} else if m.aiLoading {
 		inputPrompt = fmt.Sprintf("%s Thinking... %s", m.spinner.View(), m.textInput.View())
 	} else if m.aiMode {
-		inputPrompt = fmt.Sprintf("✨ %s", m.textInput.View())
+		inputPrompt = fmt.Sprintf("%s %s", safeAIPrompt(), m.textInput.View())
 	} else {
 		inputPrompt = m.textInput.View() + suggestionStyle.Render(m.suggestion)
 	}
+
 	inputBar := inputContainerStyle.Width(m.width - 2).Render(inputPrompt)
 	b.WriteString(inputBar + "\n")
 
@@ -501,17 +523,15 @@ func (m Model) View() string {
 }
 
 func main() {
-	// Setup console for proper Unicode output (fixes border rendering on Windows)
+	// setupConsole MUST run before initStyles so VT mode is active
 	setupConsole()
+	initStyles()
 
-	// Load configuration
 	config, err := LoadConfig()
 	if err != nil {
 		fmt.Printf("Warning: Failed to load config, using defaults: %v\n", err)
 		config = DefaultConfig()
 	}
-
-	// Apply theme colors from config
 	config.ApplyTheme()
 
 	initialModel := InitialModel(config)
@@ -528,11 +548,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Save history on exit if configured
 	if model, ok := finalModel.(Model); ok && config.History.PersistToFile {
-		if err := saveHistory(model.history, config); err != nil {
-			// Silent fail - don't interrupt exit
-		}
+		_ = saveHistory(model.history, config)
 	}
 }
 
@@ -550,13 +567,11 @@ func executeCommand(originalInput, cmdStr, desc string) tea.Cmd {
 
 		cmd := exec.Command(shell, flag, cmdStr)
 		cmd.Dir, _ = os.Getwd()
-
 		output, err := cmd.CombinedOutput()
 
-		// Build the output string
 		var result string
 		if desc != "" {
-			result = fmt.Sprintf("[NLP → %s]\n%s\n\n%s", cmdStr, desc, string(output))
+			result = fmt.Sprintf("[NLP -> %s]\n%s\n\n%s", cmdStr, desc, string(output))
 		} else {
 			result = string(output)
 		}
