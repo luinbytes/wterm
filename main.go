@@ -351,11 +351,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if matched {
 					m.cmdRunning = true
 					m.textInput.SetValue("")
-					return m, executeCommand(input, cmd, desc, m.cwd)
+					return m, executeCommand(input, cmd, desc, m.cwd, m.width, m.height)
 				} else {
 					m.cmdRunning = true
 					m.textInput.SetValue("")
-					return m, executeCommand(input, input, "", m.cwd)
+					return m, executeCommand(input, input, "", m.cwd, m.width, m.height)
 				}
 			}
 			return m, tea.Batch(cmds...)
@@ -686,7 +686,7 @@ func main() {
 }
 
 // executeCommand runs a shell command asynchronously using PTY for better shell integration
-func executeCommand(originalInput, cmdStr, desc, cwd string) tea.Cmd {
+func executeCommand(originalInput, cmdStr, desc, cwd string, termWidth, termHeight int) tea.Cmd {
 	return func() tea.Msg {
 		var shell, flag string
 		if runtime.GOOS == "windows" {
@@ -697,7 +697,7 @@ func executeCommand(originalInput, cmdStr, desc, cwd string) tea.Cmd {
 			flag = "-c"
 		}
 
-		output, err := PTYCommand(shell, flag, cmdStr, cwd)
+		output, err := PTYCommand(shell, flag, cmdStr, cwd, termWidth, termHeight)
 
 		// Extract exit code
 		exitCode := 0
