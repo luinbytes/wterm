@@ -21,6 +21,7 @@ type Config struct {
 
 // ThemeConfig holds theme color overrides
 type ThemeConfig struct {
+	Name     string `yaml:"name,omitempty"` // preset name: tokyo-night, dracula, catppuccin-mocha, gruvbox-dark, nord
 	Bg       string `yaml:"bg,omitempty"`
 	Fg       string `yaml:"fg,omitempty"`
 	Accent   string `yaml:"accent,omitempty"`
@@ -50,16 +51,7 @@ func DefaultConfig() Config {
 		APIKey:     "",
 		Provider:   "",
 		Theme: ThemeConfig{
-			Bg:       "#1a1b26",
-			Fg:       "#c0caf5",
-			Accent:   "#7aa2f7",
-			Green:    "#9ece6a",
-			Yellow:   "#e0af68",
-			Red:      "#f7768e",
-			Purple:   "#bb9af7",
-			Border:   "#3b4261",
-			CmdBlock: "#24283b",
-			InputBg:  "#16161e",
+			Name: "tokyo-night",
 		},
 		History: HistoryConfig{
 			PersistToFile: false,
@@ -143,7 +135,42 @@ func LoadConfig() (Config, error) {
 		config.History.MaxFileSizeKB = 100
 	}
 
+	// Apply theme preset with custom color overlay
+	config.Theme = resolveTheme(config.Theme)
+
 	return config, nil
+}
+
+// resolveTheme merges a preset with custom color overrides
+func resolveTheme(theme ThemeConfig) ThemeConfig {
+	// Default to tokyo-night if no name specified
+	themeName := theme.Name
+	if themeName == "" {
+		themeName = "tokyo-night"
+	}
+
+	// Get the preset
+	preset := GetThemePreset(themeName)
+
+	// Save custom overrides
+	custom := ThemeConfig{
+		Bg:       theme.Bg,
+		Fg:       theme.Fg,
+		Accent:   theme.Accent,
+		Green:    theme.Green,
+		Yellow:   theme.Yellow,
+		Red:      theme.Red,
+		Purple:   theme.Purple,
+		Border:   theme.Border,
+		CmdBlock: theme.CmdBlock,
+		InputBg:  theme.InputBg,
+	}
+
+	// Merge preset with custom overlays
+	merged := MergeThemeConfigs(preset, custom)
+	merged.Name = themeName // preserve the name
+
+	return merged
 }
 
 // ApplyTheme applies theme colors from config to global variables
