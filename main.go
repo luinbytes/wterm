@@ -6,7 +6,9 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -172,6 +174,9 @@ type Model struct {
 	historyNavActive bool
 	historyNavIndex  int
 	savedInput       string
+	// Status message for clipboard operations
+	statusMessage string
+	statusExpiry  time.Time
 }
 
 // CommandExecMsg is sent when a command finishes executing
@@ -391,6 +396,34 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.blocks = make([]CommandBlock, 0)
 			m.updateViewport()
 			return m, nil
+		}
+
+		// Handle Ctrl+Shift+C (copy) and Ctrl+Shift+V (paste)
+		// These come through as regular key events with Ctrl modifier in terminals with extended key reporting
+		if len(msg.Runes) > 0 {
+			switch msg.Runes[0] {
+			case 'C':
+				// Ctrl+Shift+C: Copy last command output to clipboard
+				if len(m.blocks) > 0 {
+					lastBlock := m.blocks[len(m.blocks)-1]
+					if lastBlock.Output != "" {
+						if err := clipboard.WriteAll(lastBlock.Output); err == nil {
+							m.statusMessage = "Copied to clipboard"
+							m.statusExpiry = time.Now().Add(2 * time.Second)
+						}
+					}
+				}
+				return m, nil
+			case 'V':
+				// Ctrl+Shift+V: Paste from clipboard into input field
+				text, err := clipboard.ReadAll()
+				if err == nil && text != "" {
+					m.textInput.SetValue(m.textInput.Value() + text)
+					m.statusMessage = "Pasted from clipboard"
+					m.statusExpiry = time.Now().Add(2 * time.Second)
+				}
+				return m, nil
+			}
 		}
 
 	case tea.WindowSizeMsg:
@@ -648,8 +681,13 @@ func (m Model) View() string {
 	b.WriteString(inputBar + "\n")
 
 	// Help bar
-	help := helpStyle.Render("Tab: AI • →: Accept suggestion • Ctrl+L: Clear • Ctrl+Up/Down: History • ↑↓/PgUp/PgDn: Scroll • /clear: Clear • /history: History • /search: Find • Ctrl+C: Quit")
+	help := helpStyle.Render("Tab: AI • →: Accept suggestion • Ctrl+L: Clear • Ctrl+Up/Down: History • ↑↓/PgUp/PgDn: Scroll • Ctrl+Shift+C: Copy • Ctrl+Shift+V: Paste • /clear: Clear • /history: History • /search: Find • Ctrl+C: Quit")
 	b.WriteString(help)
+
+	// Status message (e.g., "Copied to clipboard")
+	if m.statusMessage != "" && time.Now().Before(m.statusExpiry) {
+		b.WriteString("\n" + helpStyle.Render("  "+m.statusMessage))
+	}
 
 	return b.String()
 }
