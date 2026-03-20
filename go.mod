@@ -1,4 +1,4 @@
-module github.com/luinbytes/warp-foss-clone
+module github.com/luinbytes/wterm
 
 go 1.22
 

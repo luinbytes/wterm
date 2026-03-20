@@ -43,7 +43,7 @@ type HistoryConfig struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() Config {
 	homeDir, _ := os.UserHomeDir()
-	historyPath := filepath.Join(homeDir, ".warp-clone", "history.txt")
+	historyPath := filepath.Join(homeDir, ".wterm", "history.txt")
 
 	return Config{
 		MaxHistory: 1000,
@@ -76,7 +76,7 @@ func GetConfigPath() (string, error) {
 		return "", fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	configDir := filepath.Join(homeDir, ".warp-clone")
+	configDir := filepath.Join(homeDir, ".wterm")
 	configPath := filepath.Join(configDir, "config.yaml")
 
 	return configPath, nil
@@ -136,7 +136,7 @@ func LoadConfig() (Config, error) {
 
 	if config.History.Path == "" {
 		homeDir, _ := os.UserHomeDir()
-		config.History.Path = filepath.Join(homeDir, ".warp-clone", "history.txt")
+		config.History.Path = filepath.Join(homeDir, ".wterm", "history.txt")
 	}
 
 	if config.History.MaxFileSizeKB <= 0 {

@@ -1,4 +1,4 @@
-# Warp FOSS Clone
+# wterm
 
 A free and open-source terminal emulator inspired by [Warp](https://warp.dev/), built with Go and Bubble Tea TUI.
 
@@ -31,7 +31,7 @@ cd wterm
 go run .
 
 # Build
-go build -o warp-clone .
+go build -o wterm .
 ```
 
 ## Keybindings
@@ -48,7 +48,7 @@ go build -o warp-clone .
 
 ## Configuration
 
-The application creates a configuration file at `~/.warp-clone/config.yaml` on first run. You can customize:
+The application creates a configuration file at `~/.wterm/config.yaml` on first run. You can customize:
 
 - **Theme colors** - Override any color from the Tokyo Night theme
 - **History persistence** - Enable/disable and configure history file location
@@ -64,7 +64,7 @@ provider: ""
 
 history:
   persistToFile: true
-  path: "~/.warp-clone/history.txt"
+  path: "~/.wterm/history.txt"
   maxFileSizeKB: 100
 
 theme:
@@ -127,7 +127,7 @@ wterm/
 - [x] Command history
 - [ ] Split panes
 - [ ] Tab management
-- [x] Configuration file (~/.warp-clone/config.yaml)
+- [x] Configuration file (~/.wterm/config.yaml)
 - [x] Theme customization
 
 ## Contributing

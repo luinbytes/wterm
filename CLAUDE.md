@@ -13,7 +13,7 @@ A free and open-source terminal emulator inspired by Warp, built with Go and the
 go run .
 
 # Build a binary
-go build -o warp-clone .
+go build -o wterm .
 
 # Format code
 go fmt ./...
