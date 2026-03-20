@@ -79,6 +79,17 @@ func (p *NLPParser) setupPatterns() {
 	// Environment patterns
 	p.addPattern(`set (?:variable )?(.+) (?:to|equal|=) (.+)`, p.cmdSetVar, "Set environment variable", false, "environment")
 	p.addPattern(`show variable (.+)`, p.cmdShowVar, "Show environment variable", true, "environment")
+	p.addPattern(`^env$`, p.cmdPrintEnv, "Show environment variables", true, "environment")
+	p.addPattern(`show environment(?: variables)?$`, p.cmdPrintEnv, "Show environment variables", true, "environment")
+	p.addPattern(`list environment variables`, p.cmdPrintEnv, "List environment variables", true, "environment")
+	p.addPattern(`print environment`, p.cmdPrintEnv, "Print environment variables", true, "environment")
+	p.addPattern(`display environment`, p.cmdPrintEnv, "Display environment variables", true, "environment")
+	p.addPattern(`show env$`, p.cmdPrintEnv, "Show environment variables", true, "environment")
+	p.addPattern(`export (.+)=(.+)`, p.cmdExportVar, "Export environment variable", false, "environment")
+	p.addPattern(`set env (.+)=(.+)`, p.cmdExportVar, "Set environment variable", false, "environment")
+	p.addPattern(`show PATH$`, p.cmdShowPath, "Show PATH variable", true, "environment")
+	p.addPattern(`show HOME$`, p.cmdShowHome, "Show HOME variable", true, "environment")
+	p.addPattern(`what is \$(.+)`, p.cmdWhatIsVar, "Show value of variable", true, "environment")
 
 	// Git patterns
 	p.addPattern(`git init`, p.cmdGitInit, "Initialize git repository", true, "git")
@@ -422,6 +433,49 @@ func (p *NLPParser) cmdSetVar(re *regexp.Regexp, input string) string {
 }
 
 func (p *NLPParser) cmdShowVar(re *regexp.Regexp, input string) string {
+	matches := re.FindStringSubmatch(input)
+	if len(matches) > 1 {
+		name := strings.TrimSpace(matches[1])
+		if runtime.GOOS == "windows" {
+			return fmt.Sprintf("echo %%%s%%", name)
+		}
+		return fmt.Sprintf("echo $%s", name)
+	}
+	return ""
+}
+
+func (p *NLPParser) cmdPrintEnv(re *regexp.Regexp, input string) string {
+	return "printenv"
+}
+
+func (p *NLPParser) cmdExportVar(re *regexp.Regexp, input string) string {
+	matches := re.FindStringSubmatch(input)
+	if len(matches) > 2 {
+		name := strings.TrimSpace(matches[1])
+		value := strings.TrimSpace(matches[2])
+		if runtime.GOOS == "windows" {
+			return fmt.Sprintf("set %s=%s", name, value)
+		}
+		return fmt.Sprintf("export %s=\"%s\"", name, value)
+	}
+	return ""
+}
+
+func (p *NLPParser) cmdShowPath(re *regexp.Regexp, input string) string {
+	if runtime.GOOS == "windows" {
+		return "echo %PATH%"
+	}
+	return "echo $PATH"
+}
+
+func (p *NLPParser) cmdShowHome(re *regexp.Regexp, input string) string {
+	if runtime.GOOS == "windows" {
+		return "echo %USERPROFILE%"
+	}
+	return "echo $HOME"
+}
+
+func (p *NLPParser) cmdWhatIsVar(re *regexp.Regexp, input string) string {
 	matches := re.FindStringSubmatch(input)
 	if len(matches) > 1 {
 		name := strings.TrimSpace(matches[1])

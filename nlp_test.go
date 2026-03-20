@@ -347,6 +347,71 @@ func TestNLPParserEnvironment(t *testing.T) {
 			input:       "show variable PATH",
 			expectMatch: true,
 		},
+		{
+			name:        "env command",
+			input:       "env",
+			expectMatch: true,
+		},
+		{
+			name:        "show environment",
+			input:       "show environment",
+			expectMatch: true,
+		},
+		{
+			name:        "show environment variables",
+			input:       "show environment variables",
+			expectMatch: true,
+		},
+		{
+			name:        "list environment variables",
+			input:       "list environment variables",
+			expectMatch: true,
+		},
+		{
+			name:        "print environment",
+			input:       "print environment",
+			expectMatch: true,
+		},
+		{
+			name:        "display environment",
+			input:       "display environment",
+			expectMatch: true,
+		},
+		{
+			name:        "show env",
+			input:       "show env",
+			expectMatch: true,
+		},
+		{
+			name:        "export variable",
+			input:       "export FOO=bar",
+			expectMatch: true,
+		},
+		{
+			name:        "set env equals",
+			input:       "set env FOO=bar",
+			expectMatch: true,
+		},
+		{
+			name:        "show PATH",
+			input:       "show PATH",
+			expectMatch: true,
+		},
+		{
+			name:        "show HOME",
+			input:       "show HOME",
+			expectMatch: true,
+		},
+		{
+			name:        "what is variable",
+			input:       "what is $PATH",
+			expectMatch: true,
+		},
+		{
+			name:        "what is custom variable",
+			input:       "what is $MY_VAR",
+			expectMatch: true,
+		},
 	}
 
 	for _, tt := range tests {
