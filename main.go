@@ -350,7 +350,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.aiPrompt = input
 				m.aiLoading = true
 				m.textInput.SetValue("")
-				cmds = append(cmds, stubAICall(input))
+				cmds = append(cmds, aiCall(input, m.config))
 			} else {
 				cmd, matched, desc := m.nlpParser.Parse(input)
 				if matched {
@@ -493,14 +493,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // AIResponseMsg is sent when AI responds
 type AIResponseMsg struct {
 	Response string
-}
-
-// stubAICall simulates an AI API call
-func stubAICall(prompt string) tea.Cmd {
-	return func() tea.Msg {
-		response := fmt.Sprintf("AI Response to: %q\n\n[This is a placeholder - wire up your AI API key here]", prompt)
-		return AIResponseMsg{Response: response}
-	}
 }
 
 // searchHistory returns a formatted list of history entries matching query (empty = all)
