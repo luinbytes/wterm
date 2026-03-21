@@ -155,7 +155,7 @@ type Model struct {
 	viewport    viewport.Model
 	textInput   textinput.Model
 	spinner     spinner.Model
-	blocks      []CommandBlock
+	scrollback  *Scrollback
 	ready       bool
 	width       int
 	height      int
@@ -210,7 +210,7 @@ func InitialModel(config Config) Model {
 	return Model{
 		textInput:   ti,
 		spinner:     s,
-		blocks:      make([]CommandBlock, 0),
+		scrollback:  NewScrollback(config.Scrollback.MaxSize),
 		aiMode:      false,
 		aiLoading:   false,
 		nlpParser:   NewNLPParser(),
@@ -296,10 +296,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				if err := os.Chdir(target); err != nil {
-					m.blocks = append(m.blocks, CommandBlock{Command: input, Output: fmt.Sprintf("cd: %s", err), IsAI: false, ExitCode: -1})
+					m.scrollback.Append(CommandBlock{Command: input, Output: fmt.Sprintf("cd: %s", err), IsAI: false, ExitCode: -1})
 				} else {
 					m.cwd, _ = os.Getwd()
-					m.blocks = append(m.blocks, CommandBlock{Command: input, Output: fmt.Sprintf("Changed directory to %s", m.cwd), IsAI: false, ExitCode: -1})
+					m.scrollback.Append(CommandBlock{Command: input, Output: fmt.Sprintf("Changed directory to %s", m.cwd), IsAI: false, ExitCode: -1})
 				}
 				m.textInput.SetValue("")
 				m.updateViewport()
@@ -308,7 +308,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Handle /search command - filter command history by query
 			if strings.HasPrefix(input, "/search ") {
 				query := strings.TrimSpace(strings.TrimPrefix(input, "/search "))
-				m.blocks = append(m.blocks, CommandBlock{Command: input, Output: m.searchHistory(query), IsAI: false, ExitCode: -1})
+				m.scrollback.Append(CommandBlock{Command: input, Output: m.searchHistory(query), IsAI: false, ExitCode: -1})
 				m.textInput.SetValue("")
 				m.updateViewport()
 				return m, nil
@@ -316,7 +316,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Handle /clear command
 			if input == "/clear" {
-				m.blocks = []CommandBlock{}
+				m.scrollback.Clear()
 				m.textInput.SetValue("")
 				m.updateViewport()
 				return m, nil
@@ -324,14 +324,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Handle /pwd command - print working directory
 			if input == "/pwd" {
-				m.blocks = append(m.blocks, CommandBlock{Command: input, Output: m.cwd, IsAI: false, ExitCode: -1})
+				m.scrollback.Append(CommandBlock{Command: input, Output: m.cwd, IsAI: false, ExitCode: -1})
 				m.textInput.SetValue("")
 				m.updateViewport()
 				return m, nil
 			}
 			if input == "/search" {
 				// No query - show usage
-				m.blocks = append(m.blocks, CommandBlock{Command: "/search", Output: "Usage: /search <query>\nSearchs your command history.\nExample: /search git\n\n" + m.searchHistory(""), IsAI: false, ExitCode: -1})
+				m.scrollback.Append(CommandBlock{Command: "/search", Output: "Usage: /search <query>\nSearchs your command history.\nExample: /search git\n\n" + m.searchHistory(""), IsAI: false, ExitCode: -1})
 				m.textInput.SetValue("")
 				m.updateViewport()
 				return m, nil
@@ -350,7 +350,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.aiPrompt = input
 				m.aiLoading = true
 				m.textInput.SetValue("")
-				cmds = append(cmds, stubAICall(input))
+				cmds = append(cmds, aiCall(input, m.config))
 			} else {
 				cmd, matched, desc := m.nlpParser.Parse(input)
 				if matched {
@@ -393,7 +393,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleHistoryNavDown()
 		case tea.KeyCtrlL:
 			// Clear the viewport (like a real terminal)
-			m.blocks = make([]CommandBlock, 0)
+			m.scrollback.Clear()
 			m.updateViewport()
 			return m, nil
 		}
@@ -404,8 +404,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.Runes[0] {
 			case 'C':
 				// Ctrl+Shift+C: Copy last command output to clipboard
-				if len(m.blocks) > 0 {
-					lastBlock := m.blocks[len(m.blocks)-1]
+				if m.scrollback.Len() > 0 {
+					blocks := m.scrollback.Blocks()
+					lastBlock := blocks[len(blocks)-1]
 					if lastBlock.Output != "" {
 						if err := clipboard.WriteAll(lastBlock.Output); err == nil {
 							m.statusMessage = "Copied to clipboard"
@@ -440,7 +441,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case AIResponseMsg:
 		m.aiLoading = false
-		m.blocks = append(m.blocks, CommandBlock{
+		m.scrollback.Append(CommandBlock{
 			Command:  m.aiPrompt,
 			Output:   msg.Response,
 			IsAI:     true,
@@ -458,7 +459,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			output = "(no output)"
 		}
-		m.blocks = append(m.blocks, CommandBlock{
+		m.scrollback.Append(CommandBlock{
 			Command:  msg.Command,
 			Output:   output,
 			IsAI:     false,
@@ -492,14 +493,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // AIResponseMsg is sent when AI responds
 type AIResponseMsg struct {
 	Response string
-}
-
-// stubAICall simulates an AI API call
-func stubAICall(prompt string) tea.Cmd {
-	return func() tea.Msg {
-		response := fmt.Sprintf("AI Response to: %q\n\n[This is a placeholder - wire up your AI API key here]", prompt)
-		return AIResponseMsg{Response: response}
-	}
 }
 
 // searchHistory returns a formatted list of history entries matching query (empty = all)
@@ -576,11 +569,11 @@ func (m *Model) updateViewport() {
 	}
 
 	// Pre-capacity the builder based on estimated content size
-	estSize := len(m.blocks) * (blockWidth * 3)
+	estSize := len(m.scrollback.Blocks()) * (blockWidth * 3)
 	content := strings.Builder{}
 	content.Grow(estSize)
 
-	for _, block := range m.blocks {
+	for _, block := range m.scrollback.Blocks() {
 		var blockContent strings.Builder
 
 		prompt := cmdPromptStyle.Render(safePrompt())

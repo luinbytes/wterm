@@ -10,13 +10,19 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// ScrollbackConfig holds scrollback buffer configuration
+type ScrollbackConfig struct {
+	MaxSize int `yaml:"maxSize"` // max command blocks to retain (default 1000)
+}
+
 // Config holds application configuration
 type Config struct {
-	MaxHistory int           `yaml:"maxHistory"`
-	APIKey     string        `yaml:"apiKey"`
-	Provider   string        `yaml:"provider"` // "openai", "anthropic", "ollama", etc.
-	Theme      ThemeConfig   `yaml:"theme,omitempty"`
-	History    HistoryConfig `yaml:"history,omitempty"`
+	MaxHistory int              `yaml:"maxHistory"`
+	APIKey     string           `yaml:"apiKey"`
+	Provider   string           `yaml:"provider"` // "openai", "anthropic", "ollama", etc.
+	Theme      ThemeConfig      `yaml:"theme,omitempty"`
+	History    HistoryConfig    `yaml:"history,omitempty"`
+	Scrollback ScrollbackConfig `yaml:"scrollback,omitempty"`
 }
 
 // ThemeConfig holds theme color overrides
@@ -57,6 +63,9 @@ func DefaultConfig() Config {
 			PersistToFile: false,
 			Path:          historyPath,
 			MaxFileSizeKB: 100,
+		},
+		Scrollback: ScrollbackConfig{
+			MaxSize: 1000,
 		},
 	}
 }
@@ -133,6 +142,11 @@ func LoadConfig() (Config, error) {
 
 	if config.History.MaxFileSizeKB <= 0 {
 		config.History.MaxFileSizeKB = 100
+	}
+
+	// Validate scrollback config
+	if config.Scrollback.MaxSize <= 0 {
+		config.Scrollback.MaxSize = 1000
 	}
 
 	// Apply theme preset with custom color overlay
