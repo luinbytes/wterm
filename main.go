@@ -563,7 +563,8 @@ func (m Model) handleHistoryNavDown() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// updateViewport re-renders all command blocks into the viewport
+// updateViewport re-renders all command blocks into the viewport.
+// Uses pre-capped strings.Builder to avoid repeated allocations.
 func (m *Model) updateViewport() {
 	if !m.ready {
 		return
@@ -574,7 +575,11 @@ func (m *Model) updateViewport() {
 		blockWidth = 10
 	}
 
-	var content strings.Builder
+	// Pre-capacity the builder based on estimated content size
+	estSize := len(m.blocks) * (blockWidth * 3)
+	content := strings.Builder{}
+	content.Grow(estSize)
+
 	for _, block := range m.blocks {
 		var blockContent strings.Builder
 
@@ -582,7 +587,6 @@ func (m *Model) updateViewport() {
 		if block.IsAI {
 			prompt = aiIndicatorStyle.Render(safeAIPrompt())
 		}
-		// Add exit code indicator for non-AI commands
 		exitIndicator := ""
 		if !block.IsAI {
 			exitIndicator = formatExitCode(block.ExitCode)
@@ -591,7 +595,6 @@ func (m *Model) updateViewport() {
 		blockContent.WriteString(cmdLine + "\n")
 
 		if block.Output != "" {
-			// Strip ANSI escape sequences to get the visible text width
 			cleanOutput := ansi.Strip(block.Output)
 			blockContent.WriteString(outputStyle.Render(cleanOutput))
 		}
