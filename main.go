@@ -131,15 +131,37 @@ func initStyles() {
 // suggestionStyle renders auto-suggestion text (grayed out, dim)
 var suggestionStyle = lipgloss.NewStyle().Foreground(themeMuted).Faint(true)
 
-// formatExitCode returns a styled exit code indicator
-func formatExitCode(exitCode int) string {
+// formatExitCode returns a styled exit code indicator with duration
+func formatExitCode(exitCode int, duration time.Duration) string {
 	if exitCode == -1 {
 		return "" // Not applicable (e.g., AI responses)
 	}
+	durationStr := formatDuration(duration)
 	if exitCode == 0 {
+		if durationStr != "" {
+			return exitCodeStyle.Render(" ✓ " + durationStr)
+		}
 		return exitCodeStyle.Render(" ✓")
 	}
-	return exitCodeErrorStyle.Render(fmt.Sprintf(" ✗[%d]", exitCode))
+	suffix := fmt.Sprintf(" ✗[%d]", exitCode)
+	if durationStr != "" {
+		suffix += " " + durationStr
+	}
+	return exitCodeErrorStyle.Render(suffix)
+}
+
+// formatDuration returns a human-friendly duration string for short durations
+func formatDuration(d time.Duration) string {
+	if d <= 0 {
+		return ""
+	}
+	if d < time.Second {
+		return fmt.Sprintf("%.0fms", float64(d.Milliseconds()))
+	}
+	if d < time.Minute {
+		return fmt.Sprintf("%.1fs", d.Seconds())
+	}
+	return fmt.Sprintf("%.0fm%.0fs", d.Minutes(), d.Seconds()-float64(int(d.Minutes())*60))
 }
 
 // CommandBlock represents a command + its output
@@ -147,7 +169,8 @@ type CommandBlock struct {
 	Command  string
 	Output   string
 	IsAI     bool
-	ExitCode int // Exit code from shell command (0 = success, -1 = not applicable)
+	ExitCode int           // Exit code from shell command (0 = success, -1 = not applicable)
+	Duration time.Duration // Command execution duration
 }
 
 // Model is the main application state
@@ -184,7 +207,8 @@ type CommandExecMsg struct {
 	Command  string
 	Output   string
 	Error    error
-	ExitCode int // Exit code from shell command
+	ExitCode int
+	Duration time.Duration
 }
 
 // InitialModel creates the initial application state
@@ -464,6 +488,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			Output:   output,
 			IsAI:     false,
 			ExitCode: msg.ExitCode,
+			Duration: msg.Duration,
 		})
 		m.updateViewport()
 
@@ -582,7 +607,7 @@ func (m *Model) updateViewport() {
 		}
 		exitIndicator := ""
 		if !block.IsAI {
-			exitIndicator = formatExitCode(block.ExitCode)
+			exitIndicator = formatExitCode(block.ExitCode, block.Duration)
 		}
 		cmdLine := fmt.Sprintf("%s %s%s", prompt, cmdInputStyle.Render(block.Command), exitIndicator)
 		blockContent.WriteString(cmdLine + "\n")
@@ -722,6 +747,8 @@ func main() {
 // executeCommand runs a shell command asynchronously using PTY for better shell integration
 func executeCommand(originalInput, cmdStr, desc, cwd string, termWidth, termHeight int) tea.Cmd {
 	return func() tea.Msg {
+		start := time.Now()
+
 		var shell, flag string
 		if runtime.GOOS == "windows" {
 			shell = "cmd"
@@ -732,6 +759,7 @@ func executeCommand(originalInput, cmdStr, desc, cwd string, termWidth, termHeig
 		}
 
 		output, err := PTYCommand(shell, flag, cmdStr, cwd, termWidth, termHeight)
+		duration := time.Since(start)
 
 		// Extract exit code
 		exitCode := 0
@@ -755,6 +783,7 @@ func executeCommand(originalInput, cmdStr, desc, cwd string, termWidth, termHeig
 			Output:   result,
 			Error:    err,
 			ExitCode: exitCode,
+			Duration: duration,
 		}
 	}
 }
