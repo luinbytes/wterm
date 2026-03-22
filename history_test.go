@@ -25,9 +25,15 @@ func TestSaveHistoryNoDuplication(t *testing.T) {
 
 	// Simulate what happens during a session:
 	// 1. Commands are appended one by one via appendToHistory
-	appendToHistory("cmd1", cfg)
-	appendToHistory("cmd2", cfg)
-	appendToHistory("cmd3", cfg)
+	if err := appendToHistory("cmd1", cfg); err != nil {
+		t.Fatalf("appendToHistory cmd1 failed: %v", err)
+	}
+	if err := appendToHistory("cmd2", cfg); err != nil {
+		t.Fatalf("appendToHistory cmd2 failed: %v", err)
+	}
+	if err := appendToHistory("cmd3", cfg); err != nil {
+		t.Fatalf("appendToHistory cmd3 failed: %v", err)
+	}
 
 	// 2. On exit, saveHistory writes the full in-memory history
 	err := saveHistory([]string{"cmd1", "cmd2", "cmd3"}, cfg)
@@ -60,8 +66,12 @@ func TestSaveHistoryRewritePreservesState(t *testing.T) {
 	cfg := defaultTestConfig(path)
 
 	// First session
-	appendToHistory("old-cmd", cfg)
-	saveHistory([]string{"old-cmd"}, cfg)
+	if err := appendToHistory("old-cmd", cfg); err != nil {
+		t.Fatalf("appendToHistory failed: %v", err)
+	}
+	if err := saveHistory([]string{"old-cmd"}, cfg); err != nil {
+		t.Fatalf("saveHistory failed: %v", err)
+	}
 
 	// Second session: user deletes old-cmd from memory (e.g., /clear-history)
 	// saveHistory should reflect the current state, not accumulate
@@ -113,7 +123,9 @@ func TestSaveHistoryEmptyList(t *testing.T) {
 	cfg := defaultTestConfig(path)
 
 	// Write something first
-	appendToHistory("cmd", cfg)
+	if err := appendToHistory("cmd", cfg); err != nil {
+		t.Fatalf("appendToHistory failed: %v", err)
+	}
 
 	// Save empty history — should result in empty file
 	err := saveHistory([]string{}, cfg)
