@@ -109,6 +109,15 @@ func (s *Scrollback) IsAtBottom() bool {
 // VisibleBlocks returns the blocks that should be displayed given the current scroll position.
 // offset is how many blocks from the end to skip (scrollY).
 // If at bottom (scrollY=0), returns all blocks.
+// UpdateLastBlock updates the last block in the scrollback buffer (used for streaming output)
+func (s *Scrollback) UpdateLastBlock(fn func(*CommandBlock)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.blocks) > 0 {
+		fn(&s.blocks[len(s.blocks)-1])
+	}
+}
+
 func (s *Scrollback) VisibleBlocks(viewHeight int) []CommandBlock {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
