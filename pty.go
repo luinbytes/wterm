@@ -12,6 +12,9 @@ import (
 	"golang.org/x/term"
 )
 
+// activePTYProcess stores the currently running PTY command for signal forwarding.
+var activePTYProcess *exec.Cmd
+
 // getTerminalSize returns the terminal dimensions. It first tries the provided
 // width/height, then falls back to reading from stdout, then stdin.
 // Returns 80x24 as a last resort if terminal size cannot be determined.
@@ -50,6 +53,10 @@ func PTYCommand(shell, shellFlag, cmdStr string, workingDir string, termWidth, t
 	if err != nil {
 		return nil, err
 	}
+
+	// Store reference for signal forwarding (Ctrl+C)
+	activePTYProcess = cmd
+	defer func() { activePTYProcess = nil }()
 
 	// Make sure to close the PTY at the end
 	defer ptmx.Close()

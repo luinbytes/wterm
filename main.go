@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/atotto/clipboard"
@@ -269,6 +270,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.aiMode = false
 				m.textInput.Prompt = safePrompt() + " "
 				m.textInput.Placeholder = "Type a command..."
+				return m, nil
+			}
+			if m.cmdRunning && activePTYProcess != nil && activePTYProcess.Process != nil {
+				// Send SIGINT to the running PTY process
+				//nolint:errcheck
+				activePTYProcess.Process.Signal(syscall.SIGINT)
 				return m, nil
 			}
 			return m, tea.Quit
@@ -702,7 +709,7 @@ func (m Model) View() string {
 	b.WriteString(inputBar + "\n")
 
 	// Help bar
-	help := helpStyle.Render("Tab: AI • →: Accept suggestion • Ctrl+L: Clear • Ctrl+Up/Down: History • ↑↓/PgUp/PgDn: Scroll • Ctrl+Shift+C: Copy • Ctrl+Shift+V: Paste • /clear: Clear • /history: History • /search: Find • Ctrl+C: Quit")
+	help := helpStyle.Render("Tab: AI • →: Accept suggestion • Ctrl+L: Clear • Ctrl+Up/Down: History • ↑↓/PgUp/PgDn: Scroll • Ctrl+Shift+C: Copy • Ctrl+Shift+V: Paste • /clear: Clear • /history: History • /search: Find • Ctrl+C: Interrupt/Quit")
 	b.WriteString(help)
 
 	// Status message (e.g., "Copied to clipboard")
