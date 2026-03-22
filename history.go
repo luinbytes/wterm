@@ -137,49 +137,6 @@ func saveHistory(history []string, config Config) error {
 	return nil
 }
 
-// truncateHistoryFile truncates the history file to keep only the last N lines
-func truncateHistoryFile(path string, maxLines int) error {
-	// Read all lines
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line != "" {
-			lines = append(lines, line)
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return err
-	}
-
-	// Keep only last maxLines
-	if len(lines) > maxLines {
-		lines = lines[len(lines)-maxLines:]
-	}
-
-	// Write back
-	file, err = os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	for _, line := range lines {
-		if _, err := file.WriteString(line + "\n"); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // appendToHistory appends a single command to the history file
 func appendToHistory(command string, config Config) error {
 	if !config.History.PersistToFile || command == "" {

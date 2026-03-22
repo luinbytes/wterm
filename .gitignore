@@ -32,3 +32,4 @@ Thumbs.db
 # Config (user-specific)
 .config/
 *.env
+wterm
