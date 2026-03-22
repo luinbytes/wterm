@@ -274,6 +274,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if m.cmdRunning && activePTYProcess != nil && activePTYProcess.Process != nil {
 				// Send SIGINT to the running PTY process
+				//nolint:errcheck
 				activePTYProcess.Process.Signal(syscall.SIGINT)
 				return m, nil
 			}
