@@ -193,6 +193,9 @@ type Model struct {
 	showHistory bool
 	cwd        string
 	config      Config
+	// Streaming output state
+	streamCommand string
+	streamOutput  string
 	// History navigation (arrow key cycling)
 	historyNavActive bool
 	historyNavIndex  int
@@ -209,6 +212,20 @@ type CommandExecMsg struct {
 	Error    error
 	ExitCode int
 	Duration time.Duration
+}
+
+// PTYStreamChunkMsg is sent when a chunk of PTY output is available
+type PTYStreamChunkMsg struct {
+	Command string
+	Chunk   string
+}
+
+// PTYStreamDoneMsg is sent when the PTY command finishes
+type PTYStreamDoneMsg struct {
+	Command  string
+	Output   string
+	Error    error
+	ExitCode int
 }
 
 // InitialModel creates the initial application state
@@ -380,11 +397,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if matched {
 					m.cmdRunning = true
 					m.textInput.SetValue("")
-					return m, executeCommand(input, cmd, desc, m.cwd, m.width, m.height)
+					return m, executeCommandStreaming(input, cmd, desc, m.cwd, m.width, m.height)
 				} else {
 					m.cmdRunning = true
 					m.textInput.SetValue("")
-					return m, executeCommand(input, input, "", m.cwd, m.width, m.height)
+					return m, executeCommandStreaming(input, input, "", m.cwd, m.width, m.height)
 				}
 			}
 			return m, tea.Batch(cmds...)
@@ -473,23 +490,66 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		})
 		m.updateViewport()
 
+	case PTYStreamChunkMsg:
+		// Accumulate streaming output; show it in the last scrollback block
+		if m.streamOutput == "" {
+			// First chunk — create an initial block
+			m.scrollback.Append(CommandBlock{
+				Command:  msg.Command,
+				Output:   msg.Chunk,
+				IsAI:     false,
+				ExitCode: -1, // still running
+			})
+		} else {
+			// Subsequent chunks — append to the last block
+			m.scrollback.UpdateLastBlock(func(b *CommandBlock) {
+				b.Output += msg.Chunk
+			})
+		}
+		m.streamCommand = msg.Command
+		m.streamOutput += msg.Chunk
+		m.updateViewport()
+		// Continue reading more chunks
+		return m, waitForStreamChunk()
+
 	case CommandExecMsg:
 		m.cmdRunning = false
 		var output string
-		if msg.Error != nil {
-			output = fmt.Sprintf("[NLP -> %s]\nError: %v\n\n%s", msg.Command, msg.Error, msg.Output)
-		} else if msg.Output != "" {
-			output = msg.Output
+		if m.streamOutput != "" {
+			// We were streaming — replace the temporary block with the final version
+			output = m.streamOutput
+			// If there was an error, append it
+			if msg.Error != nil {
+				output += fmt.Sprintf("\n[Error: %v]", msg.Error)
+			}
+			// Update the last block with final output and exit code
+			m.scrollback.UpdateLastBlock(func(b *CommandBlock) {
+				b.Output = output
+				if msg.Output == "" && msg.Error == nil {
+					b.Output = "(no output)"
+				}
+				b.ExitCode = msg.ExitCode
+				b.Duration = msg.Duration
+			})
+			m.streamCommand = ""
+			m.streamOutput = ""
 		} else {
-			output = "(no output)"
+			// Non-streaming path (fallback)
+			if msg.Error != nil {
+				output = fmt.Sprintf("[NLP -> %s]\nError: %v\n\n%s", msg.Command, msg.Error, msg.Output)
+			} else if msg.Output != "" {
+				output = msg.Output
+			} else {
+				output = "(no output)"
+			}
+			m.scrollback.Append(CommandBlock{
+				Command:  msg.Command,
+				Output:   output,
+				IsAI:     false,
+				ExitCode: msg.ExitCode,
+				Duration: msg.Duration,
+			})
 		}
-		m.scrollback.Append(CommandBlock{
-			Command:  msg.Command,
-			Output:   output,
-			IsAI:     false,
-			ExitCode: msg.ExitCode,
-			Duration: msg.Duration,
-		})
 		m.updateViewport()
 
 	case spinner.TickMsg:
@@ -744,7 +804,9 @@ func main() {
 	}
 }
 
-// executeCommand runs a shell command asynchronously using PTY for better shell integration
+// executeCommand runs a shell command asynchronously using PTY for better shell integration.
+// It streams output incrementally via PTYStreamChunkMsg messages, then sends a final
+// CommandExecMsg when the command exits.
 func executeCommand(originalInput, cmdStr, desc, cwd string, termWidth, termHeight int) tea.Cmd {
 	return func() tea.Msg {
 		start := time.Now()
@@ -784,6 +846,108 @@ func executeCommand(originalInput, cmdStr, desc, cwd string, termWidth, termHeig
 			Error:    err,
 			ExitCode: exitCode,
 			Duration: duration,
+		}
+	}
+}
+
+// Stream channels for the currently running PTY command.
+// Set by executeCommandStreaming, consumed by waitForStreamChunk.
+var (
+	activeStreamOutputCh chan string
+	activeStreamDoneCh   chan ptyStreamResult
+)
+
+// waitForStreamChunk returns a tea.Cmd that waits for the next chunk of streaming output.
+func waitForStreamChunk() tea.Cmd {
+	return func() tea.Msg {
+		select {
+		case chunk, ok := <-activeStreamOutputCh:
+			if !ok {
+				// Channel closed, command must be done
+				result := <-activeStreamDoneCh
+				activeStreamOutputCh = nil
+				activeStreamDoneCh = nil
+				return CommandExecMsg{
+					Command:  "",
+					Output:   result.Output,
+					Error:    result.Error,
+					ExitCode: result.ExitCode,
+				}
+			}
+			return PTYStreamChunkMsg{Chunk: chunk}
+		case result := <-activeStreamDoneCh:
+			activeStreamOutputCh = nil
+			activeStreamDoneCh = nil
+			return CommandExecMsg{
+				Command:  "",
+				Output:   result.Output,
+				Error:    result.Error,
+				ExitCode: result.ExitCode,
+			}
+		}
+	}
+}
+
+// executeCommandStreaming runs a shell command and streams output incrementally.
+// It sends PTYStreamChunkMsg for each chunk of output, then CommandExecMsg when done.
+func executeCommandStreaming(originalInput, cmdStr, desc, cwd string, termWidth, termHeight int) tea.Cmd {
+	return func() tea.Msg {
+		var shell, flag string
+		if runtime.GOOS == "windows" {
+			shell = "cmd"
+			flag = "/c"
+		} else {
+			shell = "sh"
+			flag = "-c"
+		}
+
+		outputCh, doneCh, err := PTYCommandStream(shell, flag, cmdStr, cwd, termWidth, termHeight)
+		if err != nil {
+			return CommandExecMsg{
+				Command:  originalInput,
+				Output:   err.Error(),
+				Error:    err,
+				ExitCode: 1,
+			}
+		}
+
+		// Store channels for subsequent reads
+		activeStreamOutputCh = outputCh
+		activeStreamDoneCh = doneCh
+
+		// Prefix for NLP commands
+		var prefix string
+		if desc != "" {
+			prefix = fmt.Sprintf("[NLP -> %s]\n%s\n\n", cmdStr, desc)
+		}
+
+		// Wait for first output or completion
+		select {
+		case chunk, ok := <-outputCh:
+			if !ok {
+				result := <-doneCh
+				activeStreamOutputCh = nil
+				activeStreamDoneCh = nil
+				return CommandExecMsg{
+					Command:  originalInput,
+					Output:   prefix + result.Output,
+					Error:    result.Error,
+					ExitCode: result.ExitCode,
+				}
+			}
+			return PTYStreamChunkMsg{
+				Command: originalInput,
+				Chunk:   prefix + chunk,
+			}
+		case result := <-doneCh:
+			activeStreamOutputCh = nil
+			activeStreamDoneCh = nil
+			return CommandExecMsg{
+				Command:  originalInput,
+				Output:   prefix + result.Output,
+				Error:    result.Error,
+				ExitCode: result.ExitCode,
+			}
 		}
 	}
 }

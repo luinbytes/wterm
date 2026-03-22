@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 	"time"
 
@@ -125,4 +126,78 @@ func KillPTYProcess(cmd *exec.Cmd) error {
 		return cmd.Process.Signal(syscall.SIGTERM)
 	}
 	return nil
+}
+
+// ptyStreamResult holds the final result of a streaming PTY command
+type ptyStreamResult struct {
+	Output   string
+	Error    error
+	ExitCode int
+}
+
+// PTYCommandStream executes a command in a PTY and streams output via channels.
+// outputCh receives chunks of output as they arrive.
+// doneCh receives the final result when the command exits.
+func PTYCommandStream(shell, shellFlag, cmdStr string, workingDir string, termWidth, termHeight int) (chan string, chan ptyStreamResult, error) {
+	cmd := exec.Command(shell, shellFlag, cmdStr)
+	if workingDir != "" {
+		cmd.Dir = workingDir
+	}
+
+	ptmx, err := pty.Start(cmd)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	cols, rows := getTerminalSize(termWidth, termHeight)
+	winsize := &pty.Winsize{
+		Cols: uint16(cols),
+		Rows: uint16(rows),
+	}
+	if err := pty.Setsize(ptmx, winsize); err != nil {
+		ptmx.Close()
+		return nil, nil, fmt.Errorf("failed to set PTY size: %w", err)
+	}
+
+	outputCh := make(chan string, 64)
+	doneCh := make(chan ptyStreamResult, 1)
+
+	go func() {
+		var buf [4096]byte
+		var fullOutput strings.Builder
+		for {
+			n, readErr := ptmx.Read(buf[:])
+			if n > 0 {
+				chunk := string(buf[:n])
+				fullOutput.Write(buf[:n])
+				select {
+				case outputCh <- chunk:
+				default:
+					// Channel full, skip to avoid blocking
+				}
+			}
+			if readErr != nil {
+				break
+			}
+		}
+		ptmx.Close()
+
+		waitErr := cmd.Wait()
+		exitCode := 0
+		if waitErr != nil {
+			if exitErr, ok := waitErr.(*exec.ExitError); ok {
+				exitCode = exitErr.ExitCode()
+			} else {
+				exitCode = 1
+			}
+		}
+
+		doneCh <- ptyStreamResult{
+			Output:   fullOutput.String(),
+			Error:    waitErr,
+			ExitCode: exitCode,
+		}
+	}()
+
+	return outputCh, doneCh, nil
 }
