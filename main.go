@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"runtime"
 	"strings"
 	"time"
@@ -801,52 +800,6 @@ func main() {
 
 	if model, ok := finalModel.(Model); ok && config.History.PersistToFile {
 		_ = saveHistory(model.history, config)
-	}
-}
-
-// executeCommand runs a shell command asynchronously using PTY for better shell integration.
-// It streams output incrementally via PTYStreamChunkMsg messages, then sends a final
-// CommandExecMsg when the command exits.
-func executeCommand(originalInput, cmdStr, desc, cwd string, termWidth, termHeight int) tea.Cmd {
-	return func() tea.Msg {
-		start := time.Now()
-
-		var shell, flag string
-		if runtime.GOOS == "windows" {
-			shell = "cmd"
-			flag = "/c"
-		} else {
-			shell = "sh"
-			flag = "-c"
-		}
-
-		output, err := PTYCommand(shell, flag, cmdStr, cwd, termWidth, termHeight)
-		duration := time.Since(start)
-
-		// Extract exit code
-		exitCode := 0
-		if err != nil {
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				exitCode = exitErr.ExitCode()
-			} else {
-				exitCode = 1 // Generic error
-			}
-		}
-
-		var result string
-		if desc != "" {
-			result = fmt.Sprintf("[NLP -> %s]\n%s\n\n%s", cmdStr, desc, string(output))
-		} else {
-			result = string(output)
-		}
-
-		return CommandExecMsg{
-			Command:  originalInput,
-			Output:   result,
-			Error:    err,
-			ExitCode: exitCode,
-			Duration: duration,
-		}
 	}
 }
 
