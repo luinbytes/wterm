@@ -111,77 +111,26 @@ func saveHistory(history []string, config Config) error {
 		return fmt.Errorf("failed to create history directory: %w", err)
 	}
 
-	// Check if file exceeds size limit and truncate if needed
-	if _, err := os.Stat(path); err == nil {
-		info, _ := os.Stat(path)
-		maxBytes := config.History.MaxFileSizeKB * 1024
-		if info.Size() > int64(maxBytes) {
-			// Truncate file by keeping only recent history
-			if err := truncateHistoryFile(path, config.MaxHistory); err != nil {
-				return fmt.Errorf("failed to truncate history file: %w", err)
-			}
-		}
+	// Trim history to max size before writing
+	entries := history
+	if len(entries) > config.MaxHistory {
+		entries = entries[len(entries)-config.MaxHistory:]
 	}
 
-	// Open file in append mode
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+	// Truncate and rewrite the file with current in-memory history.
+	// Since appendToHistory() already writes each command as it's entered,
+	// we must rewrite (not append) to avoid duplicates on exit.
+	file, err := os.Create(path)
 	if err != nil {
 		return fmt.Errorf("failed to open history file: %w", err)
 	}
 	defer file.Close()
 
-	// Append new entries
-	// Only write the last batch of entries that aren't already in the file
-	// For simplicity, we'll append all current history
-	// In a production system, you'd want to track which entries are new
-	for _, entry := range history {
+	for _, entry := range entries {
 		if entry != "" {
 			if _, err := file.WriteString(entry + "\n"); err != nil {
 				return fmt.Errorf("failed to write to history file: %w", err)
 			}
-		}
-	}
-
-	return nil
-}
-
-// truncateHistoryFile truncates the history file to keep only the last N lines
-func truncateHistoryFile(path string, maxLines int) error {
-	// Read all lines
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line != "" {
-			lines = append(lines, line)
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return err
-	}
-
-	// Keep only last maxLines
-	if len(lines) > maxLines {
-		lines = lines[len(lines)-maxLines:]
-	}
-
-	// Write back
-	file, err = os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	for _, line := range lines {
-		if _, err := file.WriteString(line + "\n"); err != nil {
-			return err
 		}
 	}
 
