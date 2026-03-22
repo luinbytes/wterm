@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -280,6 +281,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		case tea.KeyTab:
+			// Tab completion for commands, file paths, and built-in commands
+			if input := m.textInput.Value(); input != "" {
+				if completions := getCompletions(input); len(completions) > 0 {
+					m.textInput.SetValue(completions[0])
+					m.suggestion = ""
+				}
+			}
+			return m, nil
+		case tea.KeyCtrlA:
+			// Ctrl+A toggles AI mode (moved from Tab to free Tab for completion)
 			m.aiMode = !m.aiMode
 			if m.aiMode {
 				m.textInput.Prompt = safeAIPrompt() + " "
@@ -702,7 +713,7 @@ func (m Model) View() string {
 	b.WriteString(inputBar + "\n")
 
 	// Help bar
-	help := helpStyle.Render("Tab: AI • →: Accept suggestion • Ctrl+L: Clear • Ctrl+Up/Down: History • ↑↓/PgUp/PgDn: Scroll • Ctrl+Shift+C: Copy • Ctrl+Shift+V: Paste • /clear: Clear • /history: History • /search: Find • Ctrl+C: Quit")
+	help := helpStyle.Render("Tab: Complete • Ctrl+A: AI • →: Accept suggestion • Ctrl+L: Clear • Ctrl+Up/Down: History • ↑↓/PgUp/PgDn: Scroll • Ctrl+Shift+C: Copy • Ctrl+Shift+V: Paste • /clear: Clear • /history: History • /search: Find • Ctrl+C: Quit")
 	b.WriteString(help)
 
 	// Status message (e.g., "Copied to clipboard")
@@ -786,4 +797,106 @@ func executeCommand(originalInput, cmdStr, desc, cwd string, termWidth, termHeig
 			Duration: duration,
 		}
 	}
+}
+
+// builtinCommands lists all built-in slash commands for tab completion
+var builtinCommands = []string{
+	"/clear",
+	"/history",
+	"/search",
+	"/help",
+	"/cd",
+	"/exit",
+	"/quit",
+	"/theme",
+	"/ai",
+	"/clear-ai",
+}
+
+// getCompletions returns completion candidates for the current input.
+// Supports: built-in /commands, file paths, and common binaries on PATH.
+func getCompletions(input string) []string {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return nil
+	}
+
+	var matches []string
+
+	// Complete built-in /commands
+	if strings.HasPrefix(input, "/") {
+		for _, cmd := range builtinCommands {
+			if strings.HasPrefix(cmd, input) && cmd != input {
+				matches = append(matches, cmd)
+			}
+		}
+		if len(matches) > 0 {
+			return matches
+		}
+	}
+
+	// Complete file paths (only if input looks like a path)
+	if strings.Contains(input, "/") || strings.Contains(input, ".") || strings.Contains(input, "~") {
+		expanded := input
+		if strings.HasPrefix(expanded, "~") {
+			home, _ := os.UserHomeDir()
+			expanded = home + expanded[1:]
+		}
+
+		dir := filepath.Dir(expanded)
+		prefix := filepath.Base(expanded)
+
+		entries, err := os.ReadDir(dir)
+		if err == nil {
+			for _, entry := range entries {
+				name := entry.Name()
+				if strings.HasPrefix(name, prefix) && name != prefix {
+					fullPath := filepath.Join(dir, name)
+					if entry.IsDir() {
+						fullPath += "/"
+					}
+					// Preserve the original input prefix (e.g., ~)
+					completion := filepath.Join(filepath.Dir(input), name)
+					if entry.IsDir() {
+						completion += "/"
+					}
+					matches = append(matches, completion)
+				}
+			}
+		}
+		if len(matches) > 0 {
+			return matches
+		}
+	}
+
+	// Complete binary names from PATH
+	parts := strings.Fields(input)
+	if len(parts) == 1 {
+		// Only complete the first word (the command)
+		cmdPrefix := parts[0]
+		if cmdPrefix == "" {
+			return nil
+		}
+		pathDirs := strings.Split(os.Getenv("PATH"), string(os.PathListSeparator))
+		seen := make(map[string]bool)
+		for _, dir := range pathDirs {
+			entries, err := os.ReadDir(dir)
+			if err != nil {
+				continue
+			}
+			for _, entry := range entries {
+				name := entry.Name()
+				if !entry.IsDir() && strings.HasPrefix(name, cmdPrefix) && name != cmdPrefix && !seen[name] {
+					seen[name] = true
+					matches = append(matches, name)
+				}
+			}
+		}
+		// Deduplicate builtins
+		if len(matches) > 0 {
+			return matches
+		}
+	}
+
+	return nil
 }
