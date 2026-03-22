@@ -33,9 +33,15 @@ func TestCompleteExactCommand(t *testing.T) {
 func TestCompleteFilePaths(t *testing.T) {
 	dir := t.TempDir()
 	// Create test files
-	os.WriteFile(filepath.Join(dir, "readme.md"), nil, 0644)
-	os.WriteFile(filepath.Join(dir, "main.go"), nil, 0644)
-	os.MkdirAll(filepath.Join(dir, "src"), 0755)
+	if err := os.WriteFile(filepath.Join(dir, "readme.md"), nil, 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "main.go"), nil, 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "src"), 0755); err != nil {
+		t.Fatalf("failed to create test dir: %v", err)
+	}
 
 	// Complete partial filename
 	input := filepath.Join(dir, "rea")
@@ -56,7 +62,9 @@ func TestCompleteFilePaths(t *testing.T) {
 
 func TestCompleteDirectoryTrailingSlash(t *testing.T) {
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, "myproject"), 0755)
+	if err := os.MkdirAll(filepath.Join(dir, "myproject"), 0755); err != nil {
+		t.Fatalf("failed to create test dir: %v", err)
+	}
 
 	input := filepath.Join(dir, "my")
 	matches := getCompletions(input)

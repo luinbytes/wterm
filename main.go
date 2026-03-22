@@ -851,10 +851,6 @@ func getCompletions(input string) []string {
 			for _, entry := range entries {
 				name := entry.Name()
 				if strings.HasPrefix(name, prefix) && name != prefix {
-					fullPath := filepath.Join(dir, name)
-					if entry.IsDir() {
-						fullPath += "/"
-					}
 					// Preserve the original input prefix (e.g., ~)
 					completion := filepath.Join(filepath.Dir(input), name)
 					if entry.IsDir() {
